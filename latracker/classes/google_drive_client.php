@@ -50,7 +50,16 @@ class google_drive_client {
             throw new \moodle_exception('nooauthissuer', 'local_latracker');
         }
 
-        $this->client = api::get_user_oauth_client($issuer, $returnurl, self::DRIVE_SCOPE, false);
+        // admin/oauth2callback.php only forwards the returned ?code as
+        // ?oauth2code on the "state" URL when that URL's sesskey param
+        // matches the current session (confirm_sesskey()). Without it, the
+        // callback always falls through to the login page - which, since
+        // the user is still authenticated, shows Moodle's "you are already
+        // logged in as X, log out to continue?" screen. So sesskey must
+        // always be present on the return URL before building the client.
+        $returnurl = new moodle_url($returnurl, ['sesskey' => sesskey()]);
+
+        $this->client = api::get_user_oauth_client($issuer, $returnurl, self::DRIVE_SCOPE);
     }
 
     /**
