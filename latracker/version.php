@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_latracker';
-$plugin->version   = 2026081900;
+$plugin->version   = 2026082001;
 $plugin->requires  = 2024100700; // Moodle 4.5.0 and above.
 $plugin->maturity  = MATURITY_ALPHA;
 $plugin->release   = '1.0.0';

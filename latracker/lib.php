@@ -36,6 +36,14 @@ function local_latracker_before_footer(): void {
         return;
     }
 
+    // Site admins are excluded on purpose: they typically hold a teacher
+    // role too (for testing/administration), and their own clicks would
+    // otherwise pollute the Learning Analytics charts, which are meant to
+    // reflect real student/teacher usage.
+    if (is_siteadmin()) {
+        return;
+    }
+
     if (empty($COURSE->id) || $COURSE->id == SITEID) {
         return;
     }

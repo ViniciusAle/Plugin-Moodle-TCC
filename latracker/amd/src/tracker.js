@@ -129,6 +129,32 @@ define(['core/ajax'], function(Ajax) {
     };
 
     /**
+     * Ensures HTMLFormElement.prototype.submit() also reports the event,
+     * not just a real 'submit' DOM event.
+     *
+     * Some Moodle activities (LTI launches in particular) submit their
+     * form programmatically via form.submit() to redirect to an external
+     * tool almost immediately after the page loads. Per the DOM spec,
+     * calling that method directly does NOT dispatch a 'submit' event, so
+     * a plain addEventListener('submit', ...) never sees it - this patch
+     * is what makes activitysubmit tracking work for those pages too.
+     */
+    var patchProgrammaticSubmit = (function() {
+        var patched = false;
+        return function(onSubmit) {
+            if (patched || typeof HTMLFormElement === 'undefined') {
+                return;
+            }
+            patched = true;
+            var nativeSubmit = HTMLFormElement.prototype.submit;
+            HTMLFormElement.prototype.submit = function() {
+                onSubmit();
+                return nativeSubmit.apply(this, arguments);
+            };
+        };
+    })();
+
+    /**
      * Starts the open->submit timer for the current activity, and wires
      * every form on the page so submitting it stops the timer.
      */
@@ -137,13 +163,20 @@ define(['core/ajax'], function(Ajax) {
             return;
         }
 
-        sendEvent('activitystart');
+        // Sent via beacon (not the normal async AJAX channel) because some
+        // activities (LTI launches) navigate away within milliseconds of
+        // load, which would otherwise cancel a still-pending XHR before it
+        // reaches the server.
+        sendEventBeacon('activitystart');
+
+        var onSubmit = function() {
+            sendEventBeacon('activitysubmit');
+        };
 
         document.querySelectorAll('form').forEach(function(form) {
-            form.addEventListener('submit', function() {
-                sendEventBeacon('activitysubmit');
-            });
+            form.addEventListener('submit', onSubmit);
         });
+        patchProgrammaticSubmit(onSubmit);
     };
 
     return {

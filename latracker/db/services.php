@@ -15,6 +15,12 @@
  * AMD module does not need to (and must not) send sesskey manually, the
  * core/ajax JS module attaches it for us.
  *
+ * There is no "list Google Drive files" function here on purpose: file
+ * browsing is done entirely in the browser via the Google Picker widget
+ * (amd/src/googlepicker.js), so the Moodle server never has to reach the
+ * Google APIs itself - only the already-downloaded CSV content is posted
+ * to local_latracker_import_drive_files below.
+ *
  * @package     local_latracker
  * @copyright   2026 Learning Analytics Tracker
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -31,18 +37,10 @@ $functions = [
         'ajax'        => true,
         'loginrequired' => true,
     ],
-    'local_latracker_get_drive_files' => [
-        'classname'   => 'local_latracker\external\get_drive_files',
-        'methodname'  => 'execute',
-        'description' => 'Lists the CSV files available in the current teacher Google Drive account.',
-        'type'        => 'read',
-        'ajax'        => true,
-        'loginrequired' => true,
-    ],
     'local_latracker_import_drive_files' => [
         'classname'   => 'local_latracker\external\import_drive_files',
         'methodname'  => 'execute',
-        'description' => 'Imports and parses the selected CSV files from Google Drive into the plugin tables.',
+        'description' => 'Parses and stores CSV file content selected by the teacher via the Google Picker.',
         'type'        => 'write',
         'ajax'        => true,
         'loginrequired' => true,

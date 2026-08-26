@@ -29,21 +29,16 @@ $string['latracker:track'] = 'Ter eventos de navegação e de atividades rastrea
 
 // Painel.
 $string['googledrivepanel'] = 'Integração com o Google Drive';
-$string['connectgoogleexplain'] = 'Conecte sua conta do Google para navegar e importar arquivos CSV do seu Google Drive.';
-$string['connectgoogledrive'] = 'Conectar ao Google Drive';
-$string['connected'] = 'Conectado ao Google Drive';
-$string['refresh'] = 'Atualizar';
-$string['selectcsvexplain'] = 'Selecione os arquivos CSV que deseja importar e processar nesta disciplina.';
-$string['loadingfiles'] = 'Carregando arquivos...';
-$string['nocsvfiles'] = 'Nenhum arquivo CSV foi encontrado nesta conta do Google Drive.';
-$string['importselected'] = 'Importar arquivos selecionados';
-$string['importing'] = 'Importando arquivos selecionados...';
+$string['selectcsvexplain'] = 'Selecione os arquivos CSV que deseja importar e processar nesta disciplina. Uma janela do Google será aberta para você entrar na conta e escolher os arquivos.';
+$string['selectfromdrive'] = 'Selecionar arquivos CSV do Google Drive';
+$string['opening'] = 'Abrindo o Google Drive...';
+$string['nofileselected'] = 'Nenhum arquivo foi selecionado.';
+$string['importing'] = 'Baixando e importando os arquivos selecionados...';
 $string['importsuccess'] = '{$a} arquivo(s) importado(s) com sucesso.';
 $string['shortcuts'] = 'Atalhos';
 $string['gotoinsights'] = 'Ir para Insights de Learning Analytics';
 $string['dashboardhelp'] = 'Após importar os arquivos, acesse a página de Insights para ver os gráficos de engajamento e a análise cruzada.';
-$string['nooauthissuer'] = 'Nenhum serviço OAuth 2 do Google foi configurado ainda. Peça a um administrador do site para configurá-lo em Administração do site > Extensões > Plugins locais > Rastreador de Learning Analytics.';
-$string['notconnected'] = 'Sua conta do Google Drive não está conectada.';
+$string['nogoogleconfig'] = 'O seletor do Google Drive ainda não foi configurado. Peça a um administrador do site para preencher o Client ID e a chave da API do Picker em Administração do site > Extensões > Plugins locais > Rastreador de Learning Analytics.';
 
 // Analytics.
 $string['noinsights'] = 'Nenhum insight está registrado.';
@@ -61,10 +56,12 @@ $string['importedrows'] = 'Linhas importadas';
 $string['avgnumericvalue'] = 'Valor numérico médio';
 
 // Configurações.
-$string['oauthheading'] = 'OAuth 2 do Google Drive';
-$string['oauthheading_desc'] = 'Cadastre um serviço "Google" em <a href="{$a}">Administração do site > Servidor > Serviços OAuth 2</a> antes de selecioná-lo abaixo. Veja o README.md para o passo a passo.';
-$string['oauthissuer'] = 'Emissor OAuth 2 do Google';
-$string['oauthissuer_desc'] = 'O serviço OAuth 2 usado para autenticar professores com o Google Drive.';
+$string['pickerheading'] = 'Seletor do Google Drive';
+$string['pickerheading_desc'] = 'O seletor de CSV roda inteiramente no navegador (Google Identity Services + o widget Google Picker), então o servidor do Moodle não precisa de acesso de saída ao Google. Veja o README.md para o passo a passo exato no Google Cloud Console.';
+$string['googleclientid'] = 'Client ID OAuth 2.0 do Google';
+$string['googleclientid_desc'] = 'Um Client ID OAuth 2.0 do tipo "Aplicativo da Web" do Google Cloud Console, com este site cadastrado em "Origens JavaScript autorizadas". Este valor é público e seguro para expor no navegador.';
+$string['pickerapikey'] = 'Chave de API do Google Picker';
+$string['pickerapikey_desc'] = 'Uma chave de API do Google Cloud Console, restrita à Picker API e ao referenciador HTTP (referrer) deste site.';
 $string['trackingenabled'] = 'Habilitar rastreamento de estudantes';
 $string['trackingenabled_desc'] = 'Quando desabilitado, o módulo de rastreamento não é injetado em nenhuma página e nenhum evento é registrado.';
 

@@ -11,13 +11,9 @@
  * "consistency and standards" heuristic.
  */
 
-.local-latracker-dashboard [data-region="file-list"] {
-    max-height: 280px;
+.local-latracker-dashboard [data-region="imported-list"] {
+    max-height: 200px;
     overflow-y: auto;
-}
-
-.local-latracker-dashboard [data-region="file-list"] .list-group-item {
-    cursor: pointer;
 }
 
 .local-latracker-analytics [data-region="chart"] {

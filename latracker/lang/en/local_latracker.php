@@ -29,21 +29,16 @@ $string['latracker:track'] = 'Have navigation and activity events tracked';
 
 // Dashboard.
 $string['googledrivepanel'] = 'Google Drive integration';
-$string['connectgoogleexplain'] = 'Connect your Google account to browse and import CSV files from your Google Drive.';
-$string['connectgoogledrive'] = 'Connect Google Drive';
-$string['connected'] = 'Connected to Google Drive';
-$string['refresh'] = 'Refresh';
-$string['selectcsvexplain'] = 'Select the CSV files you want to import and process for this course.';
-$string['loadingfiles'] = 'Loading files...';
-$string['nocsvfiles'] = 'No CSV files were found in this Google Drive account.';
-$string['importselected'] = 'Import selected files';
-$string['importing'] = 'Importing selected files...';
+$string['selectcsvexplain'] = 'Select the CSV files you want to import and process for this course. A Google window will open for you to sign in and pick the files.';
+$string['selectfromdrive'] = 'Select CSV files from Google Drive';
+$string['opening'] = 'Opening Google Drive...';
+$string['nofileselected'] = 'No file was selected.';
+$string['importing'] = 'Downloading and importing the selected files...';
 $string['importsuccess'] = '{$a} file(s) imported successfully.';
 $string['shortcuts'] = 'Shortcuts';
 $string['gotoinsights'] = 'Go to Learning Analytics Insights';
 $string['dashboardhelp'] = 'Once files are imported, open the Insights page to see engagement charts and cross analysis.';
-$string['nooauthissuer'] = 'No Google OAuth 2 service is configured yet. Ask a site administrator to set it up under Site administration > Plugins > Local plugins > Learning Analytics Tracker.';
-$string['notconnected'] = 'Your Google Drive account is not connected.';
+$string['nogoogleconfig'] = 'The Google Drive picker is not configured yet. Ask a site administrator to set the Client ID and Picker API key under Site administration > Plugins > Local plugins > Learning Analytics Tracker.';
 
 // Analytics.
 $string['noinsights'] = 'No insights are registered.';
@@ -61,10 +56,12 @@ $string['importedrows'] = 'Imported rows';
 $string['avgnumericvalue'] = 'Avg. numeric value';
 
 // Settings.
-$string['oauthheading'] = 'Google Drive OAuth 2';
-$string['oauthheading_desc'] = 'Register a "Google" service under <a href="{$a}">Site administration > Server > OAuth 2 services</a> before choosing it below. See README.md for step-by-step instructions.';
-$string['oauthissuer'] = 'Google OAuth 2 issuer';
-$string['oauthissuer_desc'] = 'The OAuth 2 service used to authenticate teachers with Google Drive.';
+$string['pickerheading'] = 'Google Drive picker';
+$string['pickerheading_desc'] = 'The CSV picker runs entirely in the browser (Google Identity Services + the Google Picker widget), so the Moodle server itself never needs outbound access to Google. See README.md for the exact Google Cloud Console steps.';
+$string['googleclientid'] = 'Google OAuth 2.0 Client ID';
+$string['googleclientid_desc'] = 'A "Web application" OAuth 2.0 Client ID from Google Cloud Console, with this site added under "Authorized JavaScript origins". This value is public and safe to expose in the browser.';
+$string['pickerapikey'] = 'Google Picker API key';
+$string['pickerapikey_desc'] = 'An API key from Google Cloud Console, restricted to the Picker API and to this site\'s HTTP referrer.';
 $string['trackingenabled'] = 'Enable student tracking';
 $string['trackingenabled_desc'] = 'When disabled, the tracker AMD module is not injected into any page and no events are recorded.';
 

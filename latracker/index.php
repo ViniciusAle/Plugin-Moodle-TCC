@@ -7,7 +7,7 @@
 // (at your option) any later version.
 
 /**
- * Teacher dashboard: Google Drive OAuth panel, CSV picker and shortcuts.
+ * Teacher dashboard: Google Drive picker (CSV import) and shortcuts.
  *
  * Access: only users holding local/latracker:view in the course context
  * may reach this page - by default that is 'editingteacher' and
@@ -20,9 +20,7 @@
  */
 
 require(__DIR__ . '/../../config.php');
-require_once($CFG->dirroot . '/local/latracker/classes/google_drive_client.php');
 
-use local_latracker\google_drive_client;
 use local_latracker\output\dashboard_page;
 
 $courseid = required_param('courseid', PARAM_INT);
@@ -43,25 +41,18 @@ $PAGE->set_title(get_string('dashboardtitle', 'local_latracker', $course->shortn
 $PAGE->set_heading($course->fullname);
 $PAGE->navbar->add(get_string('pluginname', 'local_latracker'), $pageurl);
 
-$connected = false;
-$connecturl = $pageurl;
 $canmanageintegrations = has_capability('local/latracker:manageintegrations', $context);
 
-if ($canmanageintegrations && google_drive_client::get_configured_issuer()) {
-    $drive = new google_drive_client($pageurl);
-    $connected = $drive->is_connected();
-    $connecturl = $drive->get_login_url();
-}
-
 $output = $PAGE->get_renderer('local_latracker');
+$page = new dashboard_page($courseid, $canmanageintegrations, $analyticsurl);
+$data = $page->export_for_template($output);
 
 echo $output->header();
 
-if (!google_drive_client::get_configured_issuer() && $canmanageintegrations) {
-    echo $output->notification(get_string('nooauthissuer', 'local_latracker'), \core\output\notification::NOTIFY_WARNING);
+if ($canmanageintegrations && empty($data['hasgoogleconfig'])) {
+    echo $output->notification(get_string('nogoogleconfig', 'local_latracker'), \core\output\notification::NOTIFY_WARNING);
 }
 
-$page = new dashboard_page($courseid, $connected, $canmanageintegrations, $connecturl, $analyticsurl);
 echo $output->render_dashboard_page($page);
 
 echo $output->footer();

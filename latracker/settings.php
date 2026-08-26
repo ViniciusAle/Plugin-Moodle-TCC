@@ -20,28 +20,32 @@ if ($hassiteconfig) {
     $settings = new admin_settingpage('local_latracker', get_string('pluginname', 'local_latracker'));
     $ADMIN->add('localplugins', $settings);
 
+    // The Google Drive file picker runs entirely in the browser (Google
+    // Identity Services + the Google Picker widget), so the Moodle server
+    // never has to call the Google APIs itself - it only receives the
+    // already-downloaded CSV content from the browser. This avoids relying
+    // on the Moodle server having outbound network access to Google, and
+    // avoids the server-side OAuth2 redirect dance entirely.
     $settings->add(new admin_setting_heading(
-        'local_latracker/oauthheading',
-        get_string('oauthheading', 'local_latracker'),
-        get_string('oauthheading_desc', 'local_latracker', (new moodle_url('/admin/tool/oauth2/issuers.php'))->out(false))
+        'local_latracker/pickerheading',
+        get_string('pickerheading', 'local_latracker'),
+        get_string('pickerheading_desc', 'local_latracker')
     ));
 
-    // Build the list of configured OAuth2 issuers so the admin can pick
-    // the one registered for Google (created under Site administration >
-    // Server > OAuth 2 services, see README.md for the exact steps).
-    $issueroptions = [0 => get_string('choose')];
-    if (class_exists('\core\oauth2\api')) {
-        foreach (\core\oauth2\api::get_all_issuers() as $issuer) {
-            $issueroptions[$issuer->get('id')] = $issuer->get('name') . ' (' . $issuer->get('baseurl') . ')';
-        }
-    }
+    $settings->add(new admin_setting_configtext(
+        'local_latracker/googleclientid',
+        get_string('googleclientid', 'local_latracker'),
+        get_string('googleclientid_desc', 'local_latracker'),
+        '',
+        PARAM_RAW_TRIMMED
+    ));
 
-    $settings->add(new admin_setting_configselect(
-        'local_latracker/oauthissuerid',
-        get_string('oauthissuer', 'local_latracker'),
-        get_string('oauthissuer_desc', 'local_latracker'),
-        0,
-        $issueroptions
+    $settings->add(new admin_setting_configtext(
+        'local_latracker/pickerapikey',
+        get_string('pickerapikey', 'local_latracker'),
+        get_string('pickerapikey_desc', 'local_latracker'),
+        '',
+        PARAM_RAW_TRIMMED
     ));
 
     $settings->add(new admin_setting_configcheckbox(

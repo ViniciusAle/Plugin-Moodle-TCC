@@ -9,16 +9,18 @@
 {{!
     @template local_latracker/dashboard
 
-    Teacher dashboard: Google Drive OAuth panel + CSV picker + shortcuts.
+    Teacher dashboard: Google Drive file picker (client-side) + shortcuts.
 
     Context variables required by this template:
     * courseid - int
-    * connected - bool, whether Google Drive is already linked
     * canmanageintegrations - bool, whether the current user may use the Drive panel
-    * connecturl - string, URL to start/resume the OAuth flow
     * analyticsurl - string, URL of the Insights page
+    * googleclientid - string, OAuth 2.0 Client ID (public, safe to print)
+    * pickerapikey - string, Google Picker API key (public, safe to print)
+    * hasgoogleconfig - bool, whether both of the above are configured
 }}
-<div class="local-latracker-dashboard" data-courseid="{{courseid}}" data-analyticsurl="{{analyticsurl}}">
+<div class="local-latracker-dashboard" data-courseid="{{courseid}}" data-analyticsurl="{{analyticsurl}}"
+     data-googleclientid="{{googleclientid}}" data-pickerapikey="{{pickerapikey}}">
 
     {{! Nielsen heuristic: visibility of system status. }}
     <div class="alert d-none" role="alert" data-region="status-message" aria-live="polite"></div>
@@ -32,41 +34,14 @@
                     <strong>{{#str}}googledrivepanel, local_latracker{{/str}}</strong>
                 </div>
                 <div class="card-body">
+                    <p class="text-muted small">{{#str}}selectcsvexplain, local_latracker{{/str}}</p>
 
-                    <div data-region="connect-panel" class="{{#connected}}d-none{{/connected}}">
-                        <p>{{#str}}connectgoogleexplain, local_latracker{{/str}}</p>
-                        <a class="btn btn-primary" href="{{connecturl}}" data-region="connect-button">
-                            <i class="fa fa-plug mr-1" aria-hidden="true"></i>
-                            {{#str}}connectgoogledrive, local_latracker{{/str}}
-                        </a>
-                    </div>
+                    <button type="button" class="btn btn-primary" data-action="open-picker" {{^hasgoogleconfig}}disabled{{/hasgoogleconfig}}>
+                        <i class="fa fa-folder-open mr-1" aria-hidden="true"></i>
+                        {{#str}}selectfromdrive, local_latracker{{/str}}
+                    </button>
 
-                    <div data-region="files-panel" class="{{^connected}}d-none{{/connected}}">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="badge badge-success">
-                                <i class="fa fa-check mr-1" aria-hidden="true"></i>
-                                {{#str}}connected, local_latracker{{/str}}
-                            </span>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-action="refresh-files">
-                                <i class="fa fa-refresh mr-1" aria-hidden="true"></i>
-                                {{#str}}refresh, local_latracker{{/str}}
-                            </button>
-                        </div>
-
-                        <p class="text-muted small">{{#str}}selectcsvexplain, local_latracker{{/str}}</p>
-
-                        <div data-region="file-list" class="list-group mb-3" aria-live="polite">
-                            <div class="text-muted small p-2" data-region="file-list-empty">
-                                {{#str}}loadingfiles, local_latracker{{/str}}
-                            </div>
-                        </div>
-
-                        <button type="button" class="btn btn-success" data-action="import-selected" disabled>
-                            <i class="fa fa-upload mr-1" aria-hidden="true"></i>
-                            {{#str}}importselected, local_latracker{{/str}}
-                        </button>
-                    </div>
-
+                    <div class="mt-3" data-region="imported-list"></div>
                 </div>
             </div>
         </div>

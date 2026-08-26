@@ -14,14 +14,21 @@ use core_external\external_value;
 use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use context_course;
-use local_latracker\google_drive_client;
 use local_latracker\csv_importer;
-use moodle_url;
 
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * Imports the CSV files a teacher selected in the dashboard checkbox list.
+ * Stores the CSV files a teacher selected and downloaded through the
+ * client-side Google Picker (amd/src/googlepicker.js).
+ *
+ * The browser, not the Moodle server, talks to the Google Drive API: it
+ * obtains its own OAuth access token via Google Identity Services, lets
+ * the teacher pick files with the Picker widget, downloads their content
+ * directly from googleapis.com, and only then posts the raw text here.
+ * This keeps the plugin working even when the Moodle server itself has no
+ * outbound access to Google (a common cause of the import silently
+ * hanging when it was implemented as a server-to-server call).
  *
  * @package     local_latracker
  * @copyright   2026 Learning Analytics Tracker
@@ -29,20 +36,27 @@ defined('MOODLE_INTERNAL') || die();
  */
 class import_drive_files extends external_api {
 
+    /** @var int Hard cap per file, to keep the JSON POST body reasonable. */
+    const MAX_CONTENT_BYTES = 5 * 1024 * 1024;
+
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'courseid' => new external_value(PARAM_INT, 'Course id'),
-            'fileids'  => new external_multiple_structure(
-                new external_value(PARAM_RAW, 'Google Drive file id'),
-                'Files selected for import'
+            'files'    => new external_multiple_structure(
+                new external_single_structure([
+                    'driveid'  => new external_value(PARAM_RAW, 'Google Drive file id'),
+                    'filename' => new external_value(PARAM_TEXT, 'File name'),
+                    'content'  => new external_value(PARAM_RAW, 'Raw CSV text content'),
+                ]),
+                'Files selected and downloaded by the browser'
             ),
         ]);
     }
 
-    public static function execute(int $courseid, array $fileids): array {
+    public static function execute(int $courseid, array $files): array {
         $params = self::validate_parameters(self::execute_parameters(), [
             'courseid' => $courseid,
-            'fileids'  => $fileids,
+            'files'    => $files,
         ]);
 
         $context = context_course::instance($params['courseid']);
@@ -50,28 +64,20 @@ class import_drive_files extends external_api {
         require_capability('local/latracker:manageintegrations', $context);
 
         global $USER;
-        $returnurl = new moodle_url('/local/latracker/index.php', ['courseid' => $params['courseid']]);
-        $drive = new google_drive_client($returnurl);
-
-        if (!$drive->is_connected()) {
-            throw new \moodle_exception('notconnected', 'local_latracker');
-        }
-
-        // Only import files the account can currently see, to avoid a
-        // tampered fileid list being used to fetch arbitrary Drive ids.
-        $available = [];
-        foreach ($drive->list_csv_files() as $file) {
-            $available[$file->id] = $file->name;
-        }
-
         $imported = [];
-        foreach ($params['fileids'] as $fileid) {
-            if (!isset($available[$fileid])) {
+
+        foreach ($params['files'] as $file) {
+            if (\core_text::strlen($file['content']) > self::MAX_CONTENT_BYTES) {
                 continue;
             }
-            $content = $drive->download_file($fileid);
-            $recordid = csv_importer::import($params['courseid'], $USER->id, $fileid, $available[$fileid], $content);
-            $imported[] = ['id' => $recordid, 'filename' => $available[$fileid]];
+            $recordid = csv_importer::import(
+                $params['courseid'],
+                $USER->id,
+                $file['driveid'],
+                $file['filename'],
+                $file['content']
+            );
+            $imported[] = ['id' => $recordid, 'filename' => $file['filename']];
         }
 
         return ['imported' => $imported];
