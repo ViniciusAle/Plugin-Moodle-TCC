@@ -63,6 +63,9 @@ class assignment_behavior_insight implements insight {
         }
 
         $chart = new \core\chart_bar();
+        // Horizontal bars keep activity names (often long, e.g. "T04 - Documentos
+        // para Int...") fully readable instead of overlapping on a vertical x-axis.
+        $chart->set_horizontal(true);
         $chart->add_series(new \core\chart_series(get_string('avgminutestosubmit', 'local_latracker'), $minutes));
         $chart->add_series(new \core\chart_series(get_string('copypasteevents', 'local_latracker'), $copypaste));
         $chart->set_labels($labels);

@@ -9,9 +9,9 @@
 namespace local_latracker;
 
 use local_latracker\analytics\insight;
-use local_latracker\analytics\engagement_insight;
 use local_latracker\analytics\assignment_behavior_insight;
-use local_latracker\analytics\csv_cross_insight;
+use local_latracker\analytics\click_engagement_insight;
+use local_latracker\analytics\rage_click_insight;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -22,6 +22,18 @@ defined('MOODLE_INTERNAL') || die();
  * and appending it to the array below (or wiring it through a future
  * plugin hook/callback if third-party subplugins are ever needed) - no
  * changes to analytics.php or the template are necessary.
+ *
+ * Three charts are deliberately NOT part of this registry, because they
+ * need direct access to their own Chart.js instance to support a filter
+ * dropdown (student and/or activity) - they are built separately, see
+ * analytics\engagement_timeline, analytics\submission_timing, the
+ * local_latracker_get_option_clicks external function, and
+ * output\analytics_page.
+ *
+ * csv_cross_insight is intentionally not registered here: the "Insights de
+ * Learning Analytics" dashboard was streamlined (2026 UI refactor) to focus
+ * on native tracking data only. The class itself is untouched, so it can be
+ * added back to the list below at any time.
  *
  * @package     local_latracker
  * @copyright   2026 Learning Analytics Tracker
@@ -34,9 +46,9 @@ class analytics_engine {
      */
     public static function get_providers(): array {
         return [
-            new engagement_insight(),
+            new click_engagement_insight(),
             new assignment_behavior_insight(),
-            new csv_cross_insight(),
+            new rage_click_insight(),
         ];
     }
 }

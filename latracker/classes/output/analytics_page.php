@@ -12,6 +12,8 @@ use renderable;
 use templatable;
 use renderer_base;
 use local_latracker\analytics_engine;
+use local_latracker\analytics\engagement_timeline;
+use local_latracker\analytics\submission_timing;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -56,10 +58,112 @@ class analytics_page implements renderable, templatable {
             ];
         }
 
+        $timeline = engagement_timeline::get_data($this->courseid);
+        $submissiontiming = submission_timing::get_data($this->courseid);
+
         return [
             'courseid' => $this->courseid,
             'insights' => $insights,
             'hasinsights' => !empty($insights),
+            'hasengagementdata' => $timeline['hasdata'],
+            'engagementtimelinejson' => engagement_timeline::to_json($timeline),
+            'hassubmissiontimingdata' => $submissiontiming['hasdata'],
+            'submissiontimingjson' => submission_timing::to_json($submissiontiming),
+        ] + $this->export_kpi_section($timeline, $submissiontiming)
+          + $this->export_option_click_section()
+          + $this->export_student_log_section();
+    }
+
+    /**
+     * Returns the 4 "at a glance" numbers shown in the KPI row at the top
+     * of the dashboard. Reuses the engagement timeline and submission
+     * timing data already fetched by export_for_template() instead of
+     * running further queries.
+     */
+    private function export_kpi_section(array $timeline, array $submissiontiming): array {
+        $studentcount = count($timeline['students']);
+
+        $totalminutes = 0.0;
+        foreach ($timeline['students'] as $student) {
+            $totalminutes += !empty($student['data']) ? end($student['data']) : 0;
+        }
+        $avgminutes = $studentcount > 0 ? (int) round($totalminutes / $studentcount) : 0;
+
+        $activitycount = count($submissiontiming['activities']);
+
+        // Bucket index 4 is "late" - see submission_timing::BUCKET_STRINGS/bucket_index().
+        $latecount = 0;
+        foreach ($submissiontiming['activities'] as $activity) {
+            $latecount += $activity['data'][4] ?? 0;
+        }
+
+        return [
+            'kpistudents' => $studentcount,
+            'kpiavgminutes' => $avgminutes,
+            'kpiactivities' => $activitycount,
+            'kpilate' => $latecount,
+            'haskpis' => $timeline['hasdata'] || $submissiontiming['hasdata'],
         ];
+    }
+
+    /**
+     * Returns the 'courseenrolledusers'/'hascourseenrolledusers' template
+     * variables for the "student navigation trail" section.
+     *
+     * Site admins are excluded, consistent with local_latracker_before_footer()
+     * in lib.php: their own testing/administration activity is not meant
+     * to be surfaced as student data.
+     */
+    private function export_student_log_section(): array {
+        $context = \context_course::instance($this->courseid);
+        $users = get_enrolled_users($context, '', 0, 'u.id, u.firstname, u.lastname', 'u.lastname, u.firstname');
+
+        $students = [];
+        foreach ($users as $user) {
+            if (is_siteadmin($user->id)) {
+                continue;
+            }
+            $students[] = ['id' => (int) $user->id, 'name' => fullname($user)];
+        }
+
+        return [
+            'courseenrolledusers' => $students,
+            'hascourseenrolledusers' => !empty($students),
+        ];
+    }
+
+    /**
+     * Returns the 'optionclickactivities'/'hasoptionclickactivities'
+     * template variables for the "selected options" section.
+     */
+    private function export_option_click_section(): array {
+        $activities = $this->get_option_click_activities();
+
+        return [
+            'optionclickactivities' => $activities,
+            'hasoptionclickactivities' => !empty($activities),
+        ];
+    }
+
+    /**
+     * Lists the course's quiz and choice activities, for the "selected
+     * options" chart's activity dropdown. Listed regardless of whether
+     * clicks have been recorded for them yet - the dropdown itself
+     * triggers the AJAX fetch that finds out.
+     *
+     * @return array<int, array{cmid:int, name:string}>
+     */
+    private function get_option_click_activities(): array {
+        $modinfo = get_fast_modinfo($this->courseid);
+        $activities = [];
+
+        foreach ($modinfo->get_cms() as $cm) {
+            if (!$cm->uservisible || !in_array($cm->modname, ['choice', 'quiz'], true)) {
+                continue;
+            }
+            $activities[] = ['cmid' => $cm->id, 'name' => $cm->get_formatted_name()];
+        }
+
+        return $activities;
     }
 }

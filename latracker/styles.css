@@ -20,8 +20,272 @@
     min-height: 220px;
 }
 
+/*
+ * Moodle core's own chart CSS (theme/boost/scss/moodle/core.scss,
+ * ".chart-area .chart-image") sizes the canvas with viewport units
+ * (height: 48vh; width: 46vw) instead of the actual card it is in. Inside
+ * this plugin's two-column insight grid that width is wider than the real
+ * column, so the chart visually overflows past the card edge (reported as
+ * bars/legend "ultrapassando o limite de visualização"). Overriding it to
+ * a container-relative 100% width and a fixed px height (Chart.js is
+ * configured with maintainAspectRatio: false, so it simply fills whatever
+ * box it is given) keeps every chart inside its own card at any screen size.
+ */
+.local-latracker-analytics [data-region="chart"] .chart-area .chart-image {
+    width: 100%;
+    height: 420px;
+    margin: 0;
+}
+
+.local-latracker-filter-panel {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 20;
+    margin-top: 0.25rem;
+    width: 260px;
+    max-height: 320px;
+    overflow-y: auto;
+    background: var(--body-bg, #fff);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 0.375rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+#local-latracker-engagement-timeline canvas,
+#local-latracker-submission-timing canvas {
+    max-height: 360px;
+}
+
+.local-latracker-option-question canvas {
+    max-height: 200px;
+}
+
+.local-latracker-option-question + .local-latracker-option-question {
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    padding-top: 1rem;
+}
+
 @media (max-width: 575.98px) {
     .local-latracker-dashboard .card-body {
         padding: 0.75rem;
+    }
+}
+
+/*
+ * Dashboard restructure (2026): KPI summary row, section headings, and a
+ * shared card-header pattern (title + hover/focus tooltip on an info icon)
+ * used across the four dedicated cards and the generic insight cards, so
+ * the permanent description paragraph could be removed and the page reads
+ * less cluttered while still explaining each metric on demand.
+ */
+
+.local-latracker-analytics .local-latracker-section-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gray-600, #6a737b);
+    margin: 1.75rem 0 0.75rem;
+}
+
+.local-latracker-analytics .local-latracker-kpi-row .local-latracker-section-title,
+.local-latracker-analytics > .local-latracker-section-title:first-child {
+    margin-top: 0;
+}
+
+/*
+ * Every indicator card (the 4 dedicated ones and the generic insight
+ * cards) gets the same "boxed" treatment as the KPI cards above - rounded
+ * corners, a subtle shadow and a coloured left accent - instead of
+ * Bootstrap's flat default .card, so the whole dashboard reads as one
+ * consistent design language. The accent colour is tied to each card's
+ * own dominant chart colour where one already exists.
+ */
+.local-latracker-analytics .card {
+    border: 1px solid rgba(0, 0, 0, 0.09);
+    border-left: 3px solid var(--primary, #0f6cbf);
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.local-latracker-analytics .card .card-header {
+    background: transparent;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+#local-latracker-submission-timing {
+    border-left-color: #0ca678;
+}
+
+#local-latracker-option-clicks {
+    border-left-color: #ae3ec9;
+}
+
+#local-latracker-student-logs {
+    border-left-color: #f76707;
+}
+
+.local-latracker-analytics .card[data-insight="clickengagement"] {
+    border-left-color: #4c6ef5;
+}
+
+.local-latracker-analytics .card[data-insight="behavior"] {
+    border-left-color: #f76707;
+}
+
+.local-latracker-analytics .card[data-insight="rageclick"] {
+    border-left-color: #f03e3e;
+}
+
+.local-latracker-kpi-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 1rem 1.1rem;
+    background: var(--body-bg, #fff);
+    border: 1px solid rgba(0, 0, 0, 0.09);
+    border-left: 3px solid var(--primary, #0f6cbf);
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.local-latracker-kpi-card.local-latracker-kpi-card-warning {
+    border-left-color: var(--warning, #f0ad4e);
+}
+
+.local-latracker-kpi-icon {
+    font-size: 1.1rem;
+    color: var(--primary, #0f6cbf);
+    margin-bottom: 0.35rem;
+}
+
+.local-latracker-kpi-card-warning .local-latracker-kpi-icon {
+    color: var(--warning, #f0ad4e);
+}
+
+.local-latracker-kpi-value {
+    font-size: 1.85rem;
+    font-weight: 700;
+    line-height: 1.15;
+}
+
+.local-latracker-kpi-label {
+    font-size: 0.8rem;
+    color: var(--gray-600, #6a737b);
+    margin-top: 0.15rem;
+}
+
+.local-latracker-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.local-latracker-card-title {
+    font-size: 1rem;
+}
+
+.local-latracker-help-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    color: var(--gray-600, #6a737b);
+    cursor: help;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.local-latracker-help-icon:hover,
+.local-latracker-help-icon:focus {
+    background-color: rgba(15, 108, 191, 0.1);
+    color: var(--primary, #0f6cbf);
+    outline: none;
+}
+
+/* Student navigation trail table: sticky header, tighter rows, a badge for
+   the component column and a monospaced, non-wrapping time column, so long
+   tables stay scannable instead of a dense wall of text (screenshot ref.). */
+.local-latracker-log-table {
+    max-height: 480px;
+    overflow-y: auto;
+}
+
+.local-latracker-log-table table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--body-bg, #fff);
+    z-index: 1;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--gray-600, #6a737b);
+}
+
+.local-latracker-log-table table td,
+.local-latracker-log-table table th {
+    font-size: 0.85rem;
+    vertical-align: middle;
+}
+
+.local-latracker-log-time {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    color: var(--gray-600, #6a737b);
+}
+
+.local-latracker-log-badge {
+    font-weight: 500;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Answer selection patterns: a simple timeline for a student's click
+   sequence per question, with the final (submitted) answer highlighted. */
+.local-latracker-sequence-list {
+    list-style: none;
+    margin: 0;
+    padding-left: 1rem;
+    border-left: 2px solid rgba(0, 0, 0, 0.08);
+}
+
+.local-latracker-sequence-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.2rem 0 0.2rem 0.5rem;
+    position: relative;
+}
+
+.local-latracker-sequence-list li::before {
+    content: "";
+    position: absolute;
+    left: -1.28rem;
+    top: 0.55rem;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--gray-500, #adb5bd);
+}
+
+.local-latracker-sequence-list li.local-latracker-sequence-final {
+    font-weight: 700;
+}
+
+.local-latracker-sequence-list li.local-latracker-sequence-final::before {
+    background: var(--primary, #0f6cbf);
+}
+
+.local-latracker-sequence-time {
+    flex-shrink: 0;
+    color: var(--gray-600, #6a737b);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 575.98px) {
+    .local-latracker-kpi-value {
+        font-size: 1.5rem;
     }
 }

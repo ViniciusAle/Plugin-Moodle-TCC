@@ -23,8 +23,8 @@ defined('MOODLE_INTERNAL') || die();
  * Privacy provider for local_latracker.
  *
  * Every tracker table keyed by userid lives at course context level, since
- * a student's tracked events (page time, activity timers, copy/paste) are
- * always scoped to a single course.
+ * a student's tracked events (page time, activity timers, copy/paste,
+ * clicks, submission timing) are always scoped to a single course.
  *
  * @package     local_latracker
  * @copyright   2026 Learning Analytics Tracker
@@ -34,6 +34,16 @@ class provider implements
     \core_privacy\local\metadata\provider,
     \core_privacy\local\request\plugin\provider,
     \core_privacy\local\request\core_userlist_provider {
+
+    /** @var string[] Every course-scoped, userid-keyed tracker table. */
+    const TABLES = [
+        'local_latracker_pageview',
+        'local_latracker_sessiontime',
+        'local_latracker_activitytime',
+        'local_latracker_event',
+        'local_latracker_click',
+        'local_latracker_submission',
+    ];
 
     public static function get_metadata(collection $collection): collection {
         $collection->add_database_table('local_latracker_pageview', [
@@ -63,26 +73,44 @@ class provider implements
             'pageurl'   => 'privacy:metadata:local_latracker_event:pageurl',
         ], 'privacy:metadata:local_latracker_event');
 
+        $collection->add_database_table('local_latracker_click', [
+            'userid'        => 'privacy:metadata:local_latracker_click:userid',
+            'cmid'          => 'privacy:metadata:local_latracker_click:cmid',
+            'pageurl'       => 'privacy:metadata:local_latracker_click:pageurl',
+            'targettag'     => 'privacy:metadata:local_latracker_click:targettag',
+            'optionlabel'   => 'privacy:metadata:local_latracker_click:optionlabel',
+            'questioncontext' => 'privacy:metadata:local_latracker_click:questioncontext',
+            'timecreatedms' => 'privacy:metadata:local_latracker_click:timecreatedms',
+        ], 'privacy:metadata:local_latracker_click');
+
+        $collection->add_database_table('local_latracker_submission', [
+            'userid'           => 'privacy:metadata:local_latracker_submission:userid',
+            'cmid'             => 'privacy:metadata:local_latracker_submission:cmid',
+            'duedate'          => 'privacy:metadata:local_latracker_submission:duedate',
+            'timesubmitted'    => 'privacy:metadata:local_latracker_submission:timesubmitted',
+            'secondsbeforedue' => 'privacy:metadata:local_latracker_submission:secondsbeforedue',
+        ], 'privacy:metadata:local_latracker_submission');
+
         return $collection;
     }
 
     public static function get_contexts_for_userid(int $userid): contextlist {
         $contextlist = new contextlist();
 
+        $unions = [];
+        $params = [];
+        foreach (self::TABLES as $i => $table) {
+            $unions[] = "SELECT courseid FROM {{$table}} WHERE userid = :uid{$i}";
+            $params["uid{$i}"] = $userid;
+        }
+        $params['contextlevel'] = CONTEXT_COURSE;
+
         $sql = "SELECT ctx.id
                   FROM {context} ctx
-                  JOIN (
-                        SELECT courseid FROM {local_latracker_pageview} WHERE userid = :uid1
-                        UNION SELECT courseid FROM {local_latracker_sessiontime} WHERE userid = :uid2
-                        UNION SELECT courseid FROM {local_latracker_activitytime} WHERE userid = :uid3
-                        UNION SELECT courseid FROM {local_latracker_event} WHERE userid = :uid4
-                       ) tracked ON tracked.courseid = ctx.instanceid
+                  JOIN (" . implode(' UNION ', $unions) . ") tracked ON tracked.courseid = ctx.instanceid
                  WHERE ctx.contextlevel = :contextlevel";
 
-        $contextlist->add_from_sql($sql, [
-            'uid1' => $userid, 'uid2' => $userid, 'uid3' => $userid, 'uid4' => $userid,
-            'contextlevel' => CONTEXT_COURSE,
-        ]);
+        $contextlist->add_from_sql($sql, $params);
 
         return $contextlist;
     }
@@ -94,8 +122,7 @@ class provider implements
         }
         $courseid = $context->instanceid;
 
-        foreach (['local_latracker_pageview', 'local_latracker_sessiontime',
-                  'local_latracker_activitytime', 'local_latracker_event'] as $table) {
+        foreach (self::TABLES as $table) {
             $userlist->add_from_sql('userid', "SELECT userid FROM {{$table}} WHERE courseid = :courseid",
                 ['courseid' => $courseid]);
         }
@@ -116,6 +143,8 @@ class provider implements
                 'sessiontime'  => $DB->get_record('local_latracker_sessiontime', ['courseid' => $courseid, 'userid' => $userid]) ?: null,
                 'activitytime' => array_values($DB->get_records('local_latracker_activitytime', ['courseid' => $courseid, 'userid' => $userid])),
                 'events'       => array_values($DB->get_records('local_latracker_event', ['courseid' => $courseid, 'userid' => $userid])),
+                'clicks'       => array_values($DB->get_records('local_latracker_click', ['courseid' => $courseid, 'userid' => $userid])),
+                'submissions'  => array_values($DB->get_records('local_latracker_submission', ['courseid' => $courseid, 'userid' => $userid])),
             ];
 
             writer::with_context($context)->export_data([get_string('pluginname', 'local_latracker')], $data);
@@ -138,10 +167,9 @@ class provider implements
                 continue;
             }
             $courseid = $context->instanceid;
-            $DB->delete_records('local_latracker_pageview', ['courseid' => $courseid, 'userid' => $userid]);
-            $DB->delete_records('local_latracker_sessiontime', ['courseid' => $courseid, 'userid' => $userid]);
-            $DB->delete_records('local_latracker_activitytime', ['courseid' => $courseid, 'userid' => $userid]);
-            $DB->delete_records('local_latracker_event', ['courseid' => $courseid, 'userid' => $userid]);
+            foreach (self::TABLES as $table) {
+                $DB->delete_records($table, ['courseid' => $courseid, 'userid' => $userid]);
+            }
         }
     }
 
@@ -154,18 +182,16 @@ class provider implements
         $courseid = $context->instanceid;
 
         foreach ($userlist->get_userids() as $userid) {
-            $DB->delete_records('local_latracker_pageview', ['courseid' => $courseid, 'userid' => $userid]);
-            $DB->delete_records('local_latracker_sessiontime', ['courseid' => $courseid, 'userid' => $userid]);
-            $DB->delete_records('local_latracker_activitytime', ['courseid' => $courseid, 'userid' => $userid]);
-            $DB->delete_records('local_latracker_event', ['courseid' => $courseid, 'userid' => $userid]);
+            foreach (self::TABLES as $table) {
+                $DB->delete_records($table, ['courseid' => $courseid, 'userid' => $userid]);
+            }
         }
     }
 
     private static function delete_course_data(int $courseid): void {
         global $DB;
-        $DB->delete_records('local_latracker_pageview', ['courseid' => $courseid]);
-        $DB->delete_records('local_latracker_sessiontime', ['courseid' => $courseid]);
-        $DB->delete_records('local_latracker_activitytime', ['courseid' => $courseid]);
-        $DB->delete_records('local_latracker_event', ['courseid' => $courseid]);
+        foreach (self::TABLES as $table) {
+            $DB->delete_records($table, ['courseid' => $courseid]);
+        }
     }
 }

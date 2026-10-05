@@ -9,26 +9,263 @@
 {{!
     @template local_latracker/analytics
 
-    Learning Analytics / Insights page: one card per registered insight.
+    Learning Analytics / Insights page: a KPI summary row, followed by one
+    section per indicator group (engagement, completion/deadlines, answer
+    interactions, navigation trail, behaviour) - restructured as a
+    professional, low-clutter dashboard (2026 UI refactor). Every card
+    title carries an info icon whose native tooltip (title attribute) holds
+    the indicator's explanation, instead of a permanently-visible paragraph.
 
     Context variables required by this template:
     * courseid - int
     * hasinsights - bool
     * insights - array of {id, title, description, charthtml, haschartdata}
+    * haskpis - bool
+    * kpistudents, kpiavgminutes, kpiactivities, kpilate - int
+    * hasengagementdata - bool
+    * engagementtimelinejson - string, JSON payload for amd/src/engagementchart.js
+    * hasoptionclickactivities - bool
+    * optionclickactivities - array of {cmid, name} (quiz/choice activities)
+    * hassubmissiontimingdata - bool
+    * submissiontimingjson - string, JSON payload for amd/src/submissiontiming.js
+    * hascourseenrolledusers - bool
+    * courseenrolledusers - array of {id, name}
 }}
 <div class="local-latracker-analytics" data-courseid="{{courseid}}">
+
+    {{#haskpis}}
+    <div class="local-latracker-kpi-row row mb-4">
+        <div class="col-6 col-lg-3 mb-3 mb-lg-0">
+            <div class="local-latracker-kpi-card">
+                <div class="local-latracker-kpi-icon"><i class="fa fa-users" aria-hidden="true"></i></div>
+                <div class="local-latracker-kpi-value">{{kpistudents}}</div>
+                <div class="local-latracker-kpi-label">{{#str}}kpi_students, local_latracker{{/str}}</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3 mb-3 mb-lg-0">
+            <div class="local-latracker-kpi-card">
+                <div class="local-latracker-kpi-icon"><i class="fa fa-clock-o" aria-hidden="true"></i></div>
+                <div class="local-latracker-kpi-value">{{kpiavgminutes}}</div>
+                <div class="local-latracker-kpi-label">{{#str}}kpi_avgminutes, local_latracker{{/str}}</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="local-latracker-kpi-card">
+                <div class="local-latracker-kpi-icon"><i class="fa fa-tasks" aria-hidden="true"></i></div>
+                <div class="local-latracker-kpi-value">{{kpiactivities}}</div>
+                <div class="local-latracker-kpi-label">{{#str}}kpi_activities, local_latracker{{/str}}</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="local-latracker-kpi-card local-latracker-kpi-card-warning">
+                <div class="local-latracker-kpi-icon"><i class="fa fa-exclamation-triangle" aria-hidden="true"></i></div>
+                <div class="local-latracker-kpi-value">{{kpilate}}</div>
+                <div class="local-latracker-kpi-label">{{#str}}kpi_late, local_latracker{{/str}}</div>
+            </div>
+        </div>
+    </div>
+    {{/haskpis}}
+
+    <h5 class="local-latracker-section-title">{{#str}}section_engagement, local_latracker{{/str}}</h5>
+    <div class="card mb-4" id="local-latracker-engagement-timeline">
+        <div class="card-header local-latracker-card-header">
+            <strong class="local-latracker-card-title">{{#str}}insight_engagementtimeline_title, local_latracker{{/str}}</strong>
+            <span class="local-latracker-help-icon" tabindex="0"
+                  title="{{#str}}insight_engagementtimeline_desc, local_latracker{{/str}}"
+                  aria-label="{{#str}}aboutindicator, local_latracker{{/str}}: {{#str}}insight_engagementtimeline_desc, local_latracker{{/str}}">
+                <i class="fa fa-info-circle" aria-hidden="true"></i>
+            </span>
+        </div>
+        <div class="card-body">
+            {{^hasengagementdata}}
+                <p class="text-muted">{{#str}}noinsightdata, local_latracker{{/str}}</p>
+            {{/hasengagementdata}}
+            {{#hasengagementdata}}
+            <div class="d-flex justify-content-end position-relative mb-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-action="toggle-student-filter">
+                    <i class="fa fa-filter mr-1" aria-hidden="true"></i>
+                    {{#str}}selectstudents, local_latracker{{/str}}
+                </button>
+                <div class="local-latracker-filter-panel d-none" data-region="student-filter">
+                    <div class="d-flex justify-content-between px-2 py-1 border-bottom">
+                        <button type="button" class="btn btn-link btn-sm p-0" data-action="select-all">
+                            {{#str}}selectall, local_latracker{{/str}}
+                        </button>
+                        <button type="button" class="btn btn-link btn-sm p-0" data-action="clear-selection">
+                            {{#str}}clearselection, local_latracker{{/str}}
+                        </button>
+                    </div>
+                    <div data-region="student-checkboxes"></div>
+                </div>
+            </div>
+            <canvas data-region="engagement-canvas" height="90"></canvas>
+            <script type="application/json" data-region="engagement-data">{{{engagementtimelinejson}}}</script>
+            {{/hasengagementdata}}
+        </div>
+    </div>
+
+    <h5 class="local-latracker-section-title">{{#str}}section_completion, local_latracker{{/str}}</h5>
+    <div class="card mb-4" id="local-latracker-submission-timing">
+        <div class="card-header local-latracker-card-header">
+            <strong class="local-latracker-card-title">{{#str}}insight_submissiontiming_title, local_latracker{{/str}}</strong>
+            <span class="local-latracker-help-icon" tabindex="0"
+                  title="{{#str}}insight_submissiontiming_desc, local_latracker{{/str}}"
+                  aria-label="{{#str}}aboutindicator, local_latracker{{/str}}: {{#str}}insight_submissiontiming_desc, local_latracker{{/str}}">
+                <i class="fa fa-info-circle" aria-hidden="true"></i>
+            </span>
+        </div>
+        <div class="card-body">
+            {{^hassubmissiontimingdata}}
+                <p class="text-muted">{{#str}}noinsightdata, local_latracker{{/str}}</p>
+            {{/hassubmissiontimingdata}}
+            {{#hassubmissiontimingdata}}
+            <div class="d-flex justify-content-end position-relative mb-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-action="toggle-activity-filter">
+                    <i class="fa fa-filter mr-1" aria-hidden="true"></i>
+                    {{#str}}selectactivities, local_latracker{{/str}}
+                </button>
+                <div class="local-latracker-filter-panel d-none" data-region="activity-filter">
+                    <div class="d-flex justify-content-between px-2 py-1 border-bottom">
+                        <button type="button" class="btn btn-link btn-sm p-0" data-action="select-all">
+                            {{#str}}selectall, local_latracker{{/str}}
+                        </button>
+                        <button type="button" class="btn btn-link btn-sm p-0" data-action="clear-selection">
+                            {{#str}}clearselection, local_latracker{{/str}}
+                        </button>
+                    </div>
+                    <div data-region="activity-checkboxes"></div>
+                </div>
+            </div>
+            <canvas data-region="submissiontiming-canvas" height="110"></canvas>
+            <script type="application/json" data-region="submissiontiming-data">{{{submissiontimingjson}}}</script>
+            {{/hassubmissiontimingdata}}
+        </div>
+    </div>
+
+    <h5 class="local-latracker-section-title">{{#str}}section_questions, local_latracker{{/str}}</h5>
+    <div class="card mb-4" id="local-latracker-option-clicks">
+        <div class="card-header local-latracker-card-header">
+            <strong class="local-latracker-card-title">{{#str}}insight_optionclicks_title, local_latracker{{/str}}</strong>
+            <span class="local-latracker-help-icon" tabindex="0"
+                  title="{{#str}}insight_optionclicks_desc, local_latracker{{/str}}"
+                  aria-label="{{#str}}aboutindicator, local_latracker{{/str}}: {{#str}}insight_optionclicks_desc, local_latracker{{/str}}">
+                <i class="fa fa-info-circle" aria-hidden="true"></i>
+            </span>
+        </div>
+        <div class="card-body">
+            {{^hasoptionclickactivities}}
+                <p class="text-muted">{{#str}}nooptionclickactivities, local_latracker{{/str}}</p>
+            {{/hasoptionclickactivities}}
+            {{#hasoptionclickactivities}}
+            <div class="d-flex flex-wrap align-items-center justify-content-between mb-2">
+                <div class="form-group mb-2 mr-2 flex-grow-1">
+                    <label for="local-latracker-activity-select" class="small text-muted mb-1">
+                        {{#str}}selectactivity, local_latracker{{/str}}
+                    </label>
+                    <select id="local-latracker-activity-select" class="form-control" data-region="activity-select">
+                        <option value="">{{#str}}choose{{/str}}</option>
+                        {{#optionclickactivities}}
+                        <option value="{{cmid}}">{{name}}</option>
+                        {{/optionclickactivities}}
+                    </select>
+                </div>
+                <div class="position-relative">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-action="toggle-student-filter" disabled>
+                        <i class="fa fa-filter mr-1" aria-hidden="true"></i>
+                        {{#str}}selectstudents, local_latracker{{/str}}
+                    </button>
+                    <div class="local-latracker-filter-panel d-none" data-region="student-filter">
+                        <div class="d-flex justify-content-between px-2 py-1 border-bottom">
+                            <button type="button" class="btn btn-link btn-sm p-0" data-action="select-all">
+                                {{#str}}selectall, local_latracker{{/str}}
+                            </button>
+                            <button type="button" class="btn btn-link btn-sm p-0" data-action="clear-selection">
+                                {{#str}}clearselection, local_latracker{{/str}}
+                            </button>
+                        </div>
+                        <div data-region="student-checkboxes"></div>
+                    </div>
+                </div>
+            </div>
+            <div data-region="status-message" class="text-muted small mb-2"></div>
+            <div data-region="charts-container"></div>
+
+            <div class="form-group mt-3 mb-2 d-none" data-region="sequence-picker">
+                <label for="local-latracker-sequence-select" class="small text-muted mb-1">
+                    {{#str}}viewsequence, local_latracker{{/str}}
+                </label>
+                <select id="local-latracker-sequence-select" class="form-control" data-region="sequence-select">
+                    <option value="">{{#str}}choose{{/str}}</option>
+                </select>
+            </div>
+            <div data-region="sequence-list"></div>
+            {{/hasoptionclickactivities}}
+        </div>
+    </div>
+
+    <h5 class="local-latracker-section-title">{{#str}}section_trail, local_latracker{{/str}}</h5>
+    <div class="card mb-4" id="local-latracker-student-logs">
+        <div class="card-header local-latracker-card-header">
+            <strong class="local-latracker-card-title">{{#str}}insight_studentlogs_title, local_latracker{{/str}}</strong>
+            <span class="local-latracker-help-icon" tabindex="0"
+                  title="{{#str}}insight_studentlogs_desc, local_latracker{{/str}}"
+                  aria-label="{{#str}}aboutindicator, local_latracker{{/str}}: {{#str}}insight_studentlogs_desc, local_latracker{{/str}}">
+                <i class="fa fa-info-circle" aria-hidden="true"></i>
+            </span>
+        </div>
+        <div class="card-body">
+            {{^hascourseenrolledusers}}
+                <p class="text-muted">{{#str}}nocourseenrolledusers, local_latracker{{/str}}</p>
+            {{/hascourseenrolledusers}}
+            {{#hascourseenrolledusers}}
+            <div class="d-flex flex-wrap align-items-end justify-content-between mb-2">
+                <div class="form-group mb-2 mr-2 flex-grow-1">
+                    <label for="local-latracker-log-student-select" class="small text-muted mb-1">
+                        {{#str}}selectstudentlog, local_latracker{{/str}}
+                    </label>
+                    <select id="local-latracker-log-student-select" class="form-control" data-region="log-student-select">
+                        <option value="">{{#str}}choose{{/str}}</option>
+                        {{#courseenrolledusers}}
+                        <option value="{{id}}">{{name}}</option>
+                        {{/courseenrolledusers}}
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-action="download-log-csv" disabled>
+                        <i class="fa fa-download mr-1" aria-hidden="true"></i>
+                        {{#str}}downloadcsv, local_latracker{{/str}}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-action="download-all-log-csv">
+                        <i class="fa fa-download mr-1" aria-hidden="true"></i>
+                        {{#str}}downloadallcsv, local_latracker{{/str}}
+                    </button>
+                </div>
+            </div>
+            <div data-region="status-message" class="text-muted small mb-2"></div>
+            <div data-region="log-truncated-notice" class="alert alert-info small d-none"></div>
+            <div class="table-responsive local-latracker-log-table" data-region="log-table-wrapper"></div>
+            {{/hascourseenrolledusers}}
+        </div>
+    </div>
 
     {{^hasinsights}}
         <div class="alert alert-info">{{#str}}noinsights, local_latracker{{/str}}</div>
     {{/hasinsights}}
 
+    {{#hasinsights}}
+    <h5 class="local-latracker-section-title">{{#str}}section_behaviour, local_latracker{{/str}}</h5>
+    {{/hasinsights}}
     <div class="row">
         {{#insights}}
         <div class="col-12 col-xl-6 mb-4">
-            <div class="card h-100">
-                <div class="card-header">
-                    <strong>{{title}}</strong>
-                    <p class="text-muted small mb-0">{{description}}</p>
+            <div class="card h-100" data-insight="{{id}}">
+                <div class="card-header local-latracker-card-header">
+                    <strong class="local-latracker-card-title">{{title}}</strong>
+                    <span class="local-latracker-help-icon" tabindex="0"
+                          title="{{description}}"
+                          aria-label="{{#str}}aboutindicator, local_latracker{{/str}}: {{description}}">
+                        <i class="fa fa-info-circle" aria-hidden="true"></i>
+                    </span>
                 </div>
                 <div class="card-body">
                     {{^haschartdata}}
@@ -43,3 +280,18 @@
         {{/insights}}
     </div>
 </div>
+
+{{#js}}
+require(['local_latracker/engagementchart'], function(EngagementChart) {
+    EngagementChart.init('local-latracker-engagement-timeline');
+});
+require(['local_latracker/optionclicks'], function(OptionClicks) {
+    OptionClicks.init('local-latracker-option-clicks', {{courseid}});
+});
+require(['local_latracker/submissiontiming'], function(SubmissionTiming) {
+    SubmissionTiming.init('local-latracker-submission-timing');
+});
+require(['local_latracker/studentlogs'], function(StudentLogs) {
+    StudentLogs.init('local-latracker-student-logs', {{courseid}});
+});
+{{/js}}

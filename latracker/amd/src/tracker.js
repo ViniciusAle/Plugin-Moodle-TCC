@@ -14,12 +14,17 @@
  *  - time spent on the current page (heartbeat + Page Visibility API);
  *  - accumulated platform time per course (aggregated server-side from
  *    the page-view reports, see track_event::accumulate_session_time());
- *  - time between opening an activity and submitting its form; and
- *  - Ctrl+C / Ctrl+V usage while navigating/resolving an activity.
+ *  - time between opening an activity and submitting its form;
+ *  - Ctrl+C / Ctrl+V usage while navigating/resolving an activity; and
+ *  - mouse clicks, batched and flushed periodically (used server-side for
+ *    click-engagement and rage-click insights); clicks on a quiz question
+ *    or Choice activity option also resolve which option's text was
+ *    selected, for the "selected options" insight.
  *
- * All writes go through the local_latracker_track_event web service
- * (db/services.php), which is CSRF-protected by Moodle's AJAX dispatcher
- * (mandatory sesskey check) and by a server-side capability check.
+ * All writes go through the local_latracker_track_event and
+ * local_latracker_track_clicks web services (db/services.php), which are
+ * CSRF-protected by Moodle's AJAX dispatcher (mandatory sesskey check)
+ * and by a server-side capability check.
  *
  * @module      local_latracker/tracker
  * @copyright   2026 Learning Analytics Tracker
@@ -30,6 +35,9 @@ define(['core/ajax'], function(Ajax) {
     /** Seconds between periodic "still on this page" reports. */
     var HEARTBEAT_SECONDS = 30;
 
+    /** Flush the click buffer early if it grows past this size. */
+    var CLICK_FLUSH_THRESHOLD = 25;
+
     var state = {
         courseid: 0,
         cmid: 0,
@@ -37,6 +45,8 @@ define(['core/ajax'], function(Ajax) {
         pageStart: 0,
         visible: true
     };
+
+    var clickBuffer = [];
 
     var nowSeconds = function() {
         return Math.floor(Date.now() / 1000);
@@ -53,39 +63,44 @@ define(['core/ajax'], function(Ajax) {
     };
 
     /**
-     * Sends an event through the normal (non-blocking) AJAX channel.
+     * Sends a call through the normal (non-blocking) AJAX channel.
      */
-    var sendEvent = function(eventtype, extra) {
-        return Ajax.call([{
-            methodname: 'local_latracker_track_event',
-            args: buildArgs(eventtype, extra)
-        }])[0].catch(function() {
+    var sendCall = function(methodname, args) {
+        return Ajax.call([{methodname: methodname, args: args}])[0].catch(function() {
             // Tracking must never surface an error to the student.
         });
     };
 
     /**
-     * Sends an event via sendBeacon, for moments where the page is being
+     * Sends a call via sendBeacon, for moments where the page is being
      * unloaded/hidden and a normal async XHR could be aborted by the
-     * browser before it completes.
+     * browser before it completes. Returns false if sendBeacon isn't
+     * available (or the M.cfg globals aren't), so the caller can fall
+     * back to the normal channel.
      */
-    var sendEventBeacon = function(eventtype, extra) {
+    var sendBeaconCall = function(methodname, args) {
         if (!navigator.sendBeacon || typeof M === 'undefined' || !M.cfg) {
-            sendEvent(eventtype, extra);
-            return;
+            return false;
         }
 
-        var payload = [{
-            index: 0,
-            methodname: 'local_latracker_track_event',
-            args: buildArgs(eventtype, extra)
-        }];
+        var payload = [{index: 0, methodname: methodname, args: args}];
         var url = M.cfg.wwwroot + '/lib/ajax/service.php'
             + '?sesskey=' + encodeURIComponent(M.cfg.sesskey)
-            + '&info=local_latracker_track_event';
+            + '&info=' + methodname;
         var blob = new Blob([JSON.stringify(payload)], {type: 'application/json'});
 
-        navigator.sendBeacon(url, blob);
+        return navigator.sendBeacon(url, blob);
+    };
+
+    var sendEvent = function(eventtype, extra) {
+        return sendCall('local_latracker_track_event', buildArgs(eventtype, extra));
+    };
+
+    var sendEventBeacon = function(eventtype, extra) {
+        var args = buildArgs(eventtype, extra);
+        if (!sendBeaconCall('local_latracker_track_event', args)) {
+            sendCall('local_latracker_track_event', args);
+        }
     };
 
     /**
@@ -105,9 +120,30 @@ define(['core/ajax'], function(Ajax) {
         state.pageStart = nowSeconds();
     };
 
+    /**
+     * Sends the buffered clicks (if any) and empties the buffer.
+     */
+    var flushClicks = function(useBeacon) {
+        if (!clickBuffer.length) {
+            return;
+        }
+        var clicks = clickBuffer;
+        clickBuffer = [];
+        var args = {courseid: state.courseid, clicks: clicks};
+
+        if (useBeacon) {
+            if (!sendBeaconCall('local_latracker_track_clicks', args)) {
+                sendCall('local_latracker_track_clicks', args);
+            }
+        } else {
+            sendCall('local_latracker_track_clicks', args);
+        }
+    };
+
     var handleVisibilityChange = function() {
         if (document.visibilityState === 'hidden') {
             flushPageTime(true);
+            flushClicks(true);
             state.visible = false;
         } else {
             state.pageStart = nowSeconds();
@@ -126,6 +162,132 @@ define(['core/ajax'], function(Ajax) {
         } else if (key === 'v') {
             sendEvent('paste');
         }
+    };
+
+    /**
+     * If a click landed on (or inside) an answer/choice option, resolves
+     * the option's visible text, and, for quiz questions, a short snippet
+     * of the question text too. Returns null for clicks that aren't on a
+     * recognisable option, which is the common case.
+     *
+     * Two different markup patterns are handled:
+     * - mod_choice renders a real <label for="..."> for each option.
+     * - Moodle's quiz question engine (qtype_multichoice/truefalse) does
+     *   NOT use a <label> element at all - the option text lives in a
+     *   <div data-region="answer-label"> referenced by the input's
+     *   aria-labelledby attribute instead (its own AMD module comments
+     *   "these cannot be enclosed in a label element"). Missing this
+     *   pattern is why quiz option clicks previously went unrecorded.
+     *
+     * @param {Element} target
+     * @return {?{optionlabel: String, questioncontext: ?String}}
+     */
+    var resolveClickedOption = function(target) {
+        if (!target || !target.closest) {
+            return null;
+        }
+
+        var questionEl = target.closest('.que');
+        var choiceEl = target.closest('#choiceform, .choices, form[action*="/mod/choice/view.php"]');
+        if (!questionEl && !choiceEl) {
+            return null;
+        }
+
+        var label = target.closest('[data-region="answer-label"]');
+
+        if (!label) {
+            var input = target.closest('input[type="radio"], input[type="checkbox"]');
+            if (input) {
+                var labelledby = input.getAttribute('aria-labelledby');
+                if (labelledby) {
+                    label = document.getElementById(labelledby);
+                }
+                if (!label && input.id && window.CSS && CSS.escape) {
+                    label = document.querySelector('label[for="' + CSS.escape(input.id) + '"]');
+                }
+                if (!label) {
+                    label = input.closest('label');
+                }
+            } else if (target.tagName === 'LABEL') {
+                label = target;
+            }
+        }
+
+        var optionlabel = label ? label.textContent.replace(/\s+/g, ' ').trim() : '';
+        if (!optionlabel) {
+            return null;
+        }
+
+        var questioncontext = '';
+        if (questionEl) {
+            var qtext = questionEl.querySelector('.qtext');
+            if (qtext) {
+                questioncontext = qtext.textContent.replace(/\s+/g, ' ').trim().slice(0, 150);
+            }
+        }
+
+        return {optionlabel: optionlabel.slice(0, 150), questioncontext: questioncontext};
+    };
+
+    var pushClick = function(target, extra) {
+        clickBuffer.push(Object.assign({
+            cmid: state.cmid,
+            pageurl: state.pageurl,
+            targettag: (target && target.tagName) ? target.tagName : '',
+            x: 0,
+            y: 0,
+            optionlabel: '',
+            questioncontext: '',
+            timestampms: Date.now()
+        }, extra || {}));
+
+        if (clickBuffer.length >= CLICK_FLUSH_THRESHOLD) {
+            flushClicks(false);
+        }
+    };
+
+    var handleClick = function(event) {
+        // Some Moodle UI (e.g. qtype_multichoice/answers.js) relays a real
+        // click on the visible answer text into a synthetic input.click()
+        // so the radio/checkbox actually gets selected. That synthetic
+        // click is not event.isTrusted, and would otherwise be recorded as
+        // a second, redundant click for the same user action.
+        if (event.isTrusted === false) {
+            return;
+        }
+
+        var target = event.target;
+        var option = resolveClickedOption(target);
+
+        pushClick(target, Object.assign({
+            x: Math.round(event.clientX || 0),
+            y: Math.round(event.clientY || 0)
+        }, option || {}));
+    };
+
+    /**
+     * Choice activities can also be displayed as a <select> dropdown
+     * instead of radio buttons - picking an option there never fires a
+     * 'click' on the option itself (native dropdown lists aren't part of
+     * the DOM the page can see), so it needs its own 'change' listener.
+     */
+    var handleSelectChange = function(event) {
+        var select = event.target;
+        if (!select || select.tagName !== 'SELECT' || !select.closest) {
+            return;
+        }
+        if (!select.closest('#choiceform, .choices, form[action*="/mod/choice/view.php"]')) {
+            return;
+        }
+
+        var selected = select.options[select.selectedIndex];
+        if (!selected || !selected.value) {
+            return;
+        }
+
+        pushClick(select, {
+            optionlabel: selected.text.replace(/\s+/g, ' ').trim().slice(0, 150)
+        });
     };
 
     /**
@@ -195,12 +357,16 @@ define(['core/ajax'], function(Ajax) {
             document.addEventListener('visibilitychange', handleVisibilityChange);
             window.addEventListener('pagehide', function() {
                 flushPageTime(true);
+                flushClicks(true);
             });
             document.addEventListener('keydown', handleKeydown, true);
+            document.addEventListener('click', handleClick, true);
+            document.addEventListener('change', handleSelectChange, true);
 
             window.setInterval(function() {
                 if (state.visible) {
                     flushPageTime(false);
+                    flushClicks(false);
                 }
             }, HEARTBEAT_SECONDS * 1000);
 
