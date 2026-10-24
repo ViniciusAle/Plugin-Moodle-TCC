@@ -71,7 +71,30 @@ class analytics_page implements renderable, templatable {
             'submissiontimingjson' => submission_timing::to_json($submissiontiming),
         ] + $this->export_kpi_section($timeline, $submissiontiming)
           + $this->export_option_click_section()
+          + $this->export_essay_section()
           + $this->export_student_log_section();
+    }
+
+    /**
+     * Returns the 'essayactivities'/'hasessayactivities' template variables
+     * for the "essay writing behaviour" section: the course's quizzes.
+     * Essay questions only exist inside quizzes; which quizzes actually
+     * have recorded writing data is found out by the dropdown's AJAX call.
+     */
+    private function export_essay_section(): array {
+        $modinfo = get_fast_modinfo($this->courseid);
+        $activities = [];
+
+        foreach ($modinfo->get_instances_of('quiz') as $cm) {
+            if ($cm->uservisible) {
+                $activities[] = ['cmid' => $cm->id, 'name' => $cm->get_formatted_name()];
+            }
+        }
+
+        return [
+            'essayactivities' => $activities,
+            'hasessayactivities' => !empty($activities),
+        ];
     }
 
     /**

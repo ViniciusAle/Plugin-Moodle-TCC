@@ -126,6 +126,56 @@
     border-left-color: #f76707;
 }
 
+#local-latracker-essay-behavior {
+    border-left-color: #e64980;
+}
+
+/* Essay writing behaviour: chart boxes are sized by the AMD module (height
+   follows the number of students), and the "% pasted" pill is coloured by
+   how much of the final answer came from pastes. */
+.local-latracker-essay-chart {
+    position: relative;
+}
+
+.local-latracker-essay-evolution {
+    height: 320px;
+}
+
+.local-latracker-subtitle {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.local-latracker-pill {
+    display: inline-block;
+    min-width: 3rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+    border: 1px solid transparent;
+}
+
+.local-latracker-pill-ok {
+    background: #ebfbee;
+    color: #1f6b34;
+    border-color: #b2f2bb;
+}
+
+.local-latracker-pill-warn {
+    background: #fff9db;
+    color: #7c5a00;
+    border-color: #ffe066;
+}
+
+.local-latracker-pill-high {
+    background: #fff5f5;
+    color: #a61e1e;
+    border-color: #ffa8a8;
+}
+
 .local-latracker-analytics .card[data-insight="clickengagement"] {
     border-left-color: #4c6ef5;
 }

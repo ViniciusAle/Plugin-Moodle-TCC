@@ -19,10 +19,15 @@
  *  - mouse clicks, batched and flushed periodically (used server-side for
  *    click-engagement and rage-click insights); clicks on a quiz question
  *    or Choice activity option also resolve which option's text was
- *    selected, for the "selected options" insight.
+ *    selected, for the "selected options" insight; and
+ *  - writing behaviour in quiz essay questions (focus/typing time, pauses,
+ *    pastes via the browser 'paste' event, text size over time), for the
+ *    "essay writing behaviour" insight. Only counts and text SIZES are
+ *    reported - never the text itself.
  *
- * All writes go through the local_latracker_track_event and
- * local_latracker_track_clicks web services (db/services.php), which are
+ * All writes go through the local_latracker_track_event,
+ * local_latracker_track_clicks and local_latracker_track_essay web
+ * services (db/services.php), which are
  * CSRF-protected by Moodle's AJAX dispatcher (mandatory sesskey check)
  * and by a server-side capability check.
  *
@@ -37,6 +42,16 @@ define(['core/ajax'], function(Ajax) {
 
     /** Flush the click buffer early if it grows past this size. */
     var CLICK_FLUSH_THRESHOLD = 25;
+
+    /** A gap between two typing inputs at or above this counts as a "pause" (and is not typing time). */
+    var ESSAY_PAUSE_MS = 5000;
+
+    /** Minimum interval between text-size snapshots while typing. */
+    var ESSAY_SNAPSHOT_MS = 10000;
+
+    /** Snapshots/pastes kept per field; the server enforces its own caps too. */
+    var ESSAY_MAX_POINTS = 150;
+    var ESSAY_MAX_PASTES = 100;
 
     var state = {
         courseid: 0,
@@ -144,10 +159,14 @@ define(['core/ajax'], function(Ajax) {
         if (document.visibilityState === 'hidden') {
             flushPageTime(true);
             flushClicks(true);
+            // Time on another tab is not time with the field focused.
+            closeAllEssayFocus();
+            flushEssays(true);
             state.visible = false;
         } else {
             state.pageStart = nowSeconds();
             state.visible = true;
+            resumeEssayFocus();
         }
     };
 
@@ -341,6 +360,362 @@ define(['core/ajax'], function(Ajax) {
         patchProgrammaticSubmit(onSubmit);
     };
 
+    // ---------------------------------------------------------------------
+    // Essay question writing behaviour.
+    //
+    // Works with the three editors an essay answer can use:
+    //  - a plain <textarea> (plain text / monospaced formats);
+    //  - Atto, whose editing area is a contenteditable <div> in the SAME
+    //    document, so events bubble up to the question block; and
+    //  - TinyMCE (the Moodle 4.5 default), whose editing area is an <iframe>:
+    //    keyboard/paste events inside it never reach this document, so each
+    //    iframe's own document is bound separately, once it is ready.
+    // ---------------------------------------------------------------------
+
+    /** Every registered essay field on the page. */
+    var essayFields = [];
+
+    /** Random id of this page visit, so reports of the same visit upsert one row. */
+    var essaySessionId = '';
+
+    var randomId = function() {
+        var chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        var id = '';
+        for (var i = 0; i < 24; i++) {
+            id += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return id;
+    };
+
+    /** Collapses whitespace runs (and non-breaking/zero-width spaces) so sizes are stable across editors. */
+    var normalizeText = function(text) {
+        return (text || '').replace(/[​ ]/g, ' ').replace(/\s+/g, ' ').trim();
+    };
+
+    var countWords = function(normalized) {
+        return normalized === '' ? 0 : normalized.split(' ').length;
+    };
+
+    /** Reads the current answer text from whichever editor the field uses. */
+    var readEssayText = function(field) {
+        var frames = field.que.querySelectorAll('iframe');
+        for (var i = 0; i < frames.length; i++) {
+            try {
+                var doc = frames[i].contentDocument;
+                if (doc && doc.body && doc.body.isContentEditable) {
+                    return doc.body.innerText || doc.body.textContent || '';
+                }
+            } catch (e) {
+                // Not a same-origin frame: not an editor.
+            }
+        }
+
+        var atto = field.que.querySelector('.editor_atto_content');
+        if (atto) {
+            return atto.innerText || atto.textContent || '';
+        }
+
+        var textarea = field.que.querySelector('textarea');
+        return textarea ? textarea.value : '';
+    };
+
+    var isEditable = function(element) {
+        return !!element && element.nodeType === 1
+            && (element.tagName === 'TEXTAREA' || element.isContentEditable === true);
+    };
+
+    /** Records the answer's current size, unless it hasn't changed since the last snapshot. */
+    var takeEssaySnapshot = function(field, now) {
+        var text = normalizeText(readEssayText(field));
+        var chars = text.length;
+        var words = countWords(text);
+        var last = field.timeline[field.timeline.length - 1];
+
+        field.lastSnapshotMs = now;
+        if (last && last[1] === chars && last[2] === words) {
+            return;
+        }
+
+        field.timeline.push([Math.round((now - field.startedms) / 1000), chars, words]);
+        if (field.timeline.length > ESSAY_MAX_POINTS) {
+            // Thin out: drop every second interior point, keeping first and last.
+            var total = field.timeline.length;
+            field.timeline = field.timeline.filter(function(point, index) {
+                return index === 0 || index === total - 1 || index % 2 === 0;
+            });
+        }
+        field.dirty = true;
+    };
+
+    var startEssayFocus = function(field) {
+        if (!field.focusStart && state.visible) {
+            field.focusStart = Date.now();
+        }
+    };
+
+    var closeEssayFocus = function(field) {
+        if (field.focusStart) {
+            field.focusMs += Date.now() - field.focusStart;
+            field.focusStart = 0;
+            field.dirty = true;
+        }
+    };
+
+    var closeAllEssayFocus = function() {
+        essayFields.forEach(closeEssayFocus);
+    };
+
+    /** After returning to the tab, resumes focus time for a field that still has the caret. */
+    var resumeEssayFocus = function() {
+        essayFields.forEach(function(field) {
+            var active = document.activeElement;
+            if (active && field.que.contains(active)) {
+                startEssayFocus(field);
+            }
+        });
+    };
+
+    var onEssayFocus = function(field, event) {
+        if (!isEditable(event.target)) {
+            return;
+        }
+        startEssayFocus(field);
+        if (!field.timeline.length) {
+            // Baseline: the size the answer already had before this visit's edits.
+            takeEssaySnapshot(field, Date.now());
+        }
+    };
+
+    var onEssayBlur = function(field, event) {
+        if (isEditable(event.target)) {
+            closeEssayFocus(field);
+        }
+    };
+
+    var onEssayInput = function(field, event) {
+        if (!isEditable(event.target)) {
+            return;
+        }
+
+        var now = Date.now();
+        field.dirty = true;
+        startEssayFocus(field);
+
+        // Pastes/drops are counted by the 'paste' handler, not as typing.
+        if (/^(insertFromPaste|insertFromDrop|insertFromYank|insertReplacementText)/.test(event.inputType || '')) {
+            field.lastInputMs = now;
+            takeEssaySnapshot(field, now);
+            return;
+        }
+
+        field.keystrokes++;
+        if (field.lastInputMs) {
+            var gap = now - field.lastInputMs;
+            if (gap >= ESSAY_PAUSE_MS) {
+                field.pauses++;
+            } else {
+                field.typingMs += gap;
+            }
+        }
+        field.lastInputMs = now;
+
+        if (now - field.lastSnapshotMs >= ESSAY_SNAPSHOT_MS) {
+            takeEssaySnapshot(field, now);
+        }
+    };
+
+    /**
+     * Uses the browser 'paste' event (not the Ctrl+V key), so pastes via
+     * the context menu, the browser menu or a touch keyboard count too.
+     * Only the pasted text's SIZE is kept.
+     */
+    var onEssayPaste = function(field, event) {
+        if (!isEditable(event.target)) {
+            return;
+        }
+
+        var clipboard = event.clipboardData || window.clipboardData;
+        var text = clipboard && clipboard.getData ? clipboard.getData('text') : '';
+        var chars = normalizeText(text).length;
+        if (!chars) {
+            return;
+        }
+
+        var now = Date.now();
+        field.pasteCount++;
+        field.pastedChars += chars;
+        if (field.pastes.length < ESSAY_MAX_PASTES) {
+            field.pastes.push([Math.round((now - field.startedms) / 1000), chars]);
+        }
+        field.lastInputMs = now;
+        field.dirty = true;
+        startEssayFocus(field);
+
+        // The pasted text is only in the editor after this event finishes.
+        window.setTimeout(function() {
+            takeEssaySnapshot(field, Date.now());
+        }, 0);
+    };
+
+    var bindEssayEvents = function(field, target) {
+        target.addEventListener('focusin', function(event) {
+            onEssayFocus(field, event);
+        }, true);
+        target.addEventListener('focusout', function(event) {
+            onEssayBlur(field, event);
+        }, true);
+        target.addEventListener('input', function(event) {
+            onEssayInput(field, event);
+        }, true);
+        target.addEventListener('paste', function(event) {
+            onEssayPaste(field, event);
+        }, true);
+    };
+
+    /**
+     * Binds the document inside every editor iframe (TinyMCE) found in an
+     * essay field. TinyMCE creates its iframe after page load and may swap
+     * its document, so this runs repeatedly and remembers which documents
+     * it has already bound.
+     */
+    var bindEssayFrames = function() {
+        essayFields.forEach(function(field) {
+            field.que.querySelectorAll('iframe').forEach(function(frame) {
+                var doc = null;
+                try {
+                    doc = frame.contentDocument;
+                } catch (e) {
+                    return;
+                }
+                if (!doc || !doc.body || !doc.body.isContentEditable || field.boundDocs.indexOf(doc) !== -1) {
+                    return;
+                }
+                field.boundDocs.push(doc);
+                bindEssayEvents(field, doc);
+            });
+        });
+    };
+
+    var registerEssay = function(que, index) {
+        // Review pages render the answer read-only (no editable surface).
+        if (que.__latrackerEssay || !que.querySelector('textarea:not([readonly]):not([disabled]), .editor_atto_content')) {
+            return;
+        }
+
+        // Quiz question blocks have id "question-<usageid>-<slot>": the
+        // usage id identifies the attempt, the slot is the same for every
+        // student, which is what lets answers be compared across students.
+        var idMatch = /^question-(\d+)-(\d+)$/.exec(que.id || '');
+        var number = que.querySelector('.info .no .qno');
+        var qtext = que.querySelector('.qtext');
+
+        var field = {
+            que: que,
+            usageid: idMatch ? parseInt(idMatch[1], 10) : 0,
+            slot: idMatch ? parseInt(idMatch[2], 10) : index + 1,
+            questionnumber: number ? number.textContent.trim().slice(0, 20) : String(index + 1),
+            questioncontext: qtext ? normalizeText(qtext.textContent).slice(0, 150) : '',
+            startedms: Date.now(),
+            focusMs: 0,
+            focusStart: 0,
+            typingMs: 0,
+            lastInputMs: 0,
+            keystrokes: 0,
+            pauses: 0,
+            pasteCount: 0,
+            pastedChars: 0,
+            pastes: [],
+            timeline: [],
+            lastSnapshotMs: 0,
+            dirty: false,
+            boundDocs: []
+        };
+
+        que.__latrackerEssay = field;
+        essayFields.push(field);
+        // Plain textarea and Atto: events bubble to the question block.
+        bindEssayEvents(field, que);
+    };
+
+    var buildEssayPayload = function(field, now) {
+        // Refresh the final size so the report reflects the latest text.
+        takeEssaySnapshot(field, now);
+        var text = normalizeText(readEssayText(field));
+        var focusMs = field.focusMs + (field.focusStart ? now - field.focusStart : 0);
+
+        return {
+            sessionid: essaySessionId,
+            usageid: field.usageid,
+            slot: field.slot,
+            cmid: state.cmid,
+            questionnumber: field.questionnumber,
+            questioncontext: field.questioncontext,
+            startedms: field.startedms,
+            reportms: now,
+            focusseconds: Math.round(focusMs / 1000),
+            typingseconds: Math.round(field.typingMs / 1000),
+            keystrokes: field.keystrokes,
+            pausecount: field.pauses,
+            pastecount: field.pasteCount,
+            pastedchars: field.pastedChars,
+            finalchars: text.length,
+            finalwords: countWords(text),
+            timeline: JSON.stringify(field.timeline),
+            pastelog: JSON.stringify(field.pastes)
+        };
+    };
+
+    /**
+     * Sends the cumulative metrics of every essay field that changed since
+     * the last report (each report replaces the previous one server-side).
+     */
+    var flushEssays = function(useBeacon) {
+        var now = Date.now();
+        var payloads = [];
+        var reported = [];
+
+        essayFields.forEach(function(field) {
+            var touched = field.keystrokes || field.pasteCount || field.focusMs || field.focusStart;
+            if (!field.dirty || !touched) {
+                return;
+            }
+            payloads.push(buildEssayPayload(field, now));
+            reported.push(field);
+        });
+
+        if (!payloads.length) {
+            return;
+        }
+        reported.forEach(function(field) {
+            field.dirty = false;
+        });
+
+        var args = {courseid: state.courseid, fields: payloads};
+        if (useBeacon) {
+            if (!sendBeaconCall('local_latracker_track_essay', args)) {
+                sendCall('local_latracker_track_essay', args);
+            }
+        } else {
+            sendCall('local_latracker_track_essay', args);
+        }
+    };
+
+    var bindEssayTracking = function() {
+        var blocks = document.querySelectorAll('.que.essay');
+        if (!blocks.length) {
+            return;
+        }
+
+        essaySessionId = randomId();
+        blocks.forEach(registerEssay);
+        if (!essayFields.length) {
+            return;
+        }
+
+        bindEssayFrames();
+        window.setInterval(bindEssayFrames, 2000);
+    };
+
     return {
         /**
          * @param {Object} config
@@ -358,6 +733,8 @@ define(['core/ajax'], function(Ajax) {
             window.addEventListener('pagehide', function() {
                 flushPageTime(true);
                 flushClicks(true);
+                closeAllEssayFocus();
+                flushEssays(true);
             });
             document.addEventListener('keydown', handleKeydown, true);
             document.addEventListener('click', handleClick, true);
@@ -367,10 +744,12 @@ define(['core/ajax'], function(Ajax) {
                 if (state.visible) {
                     flushPageTime(false);
                     flushClicks(false);
+                    flushEssays(false);
                 }
             }, HEARTBEAT_SECONDS * 1000);
 
             bindActivityLifecycle();
+            bindEssayTracking();
         }
     };
 });

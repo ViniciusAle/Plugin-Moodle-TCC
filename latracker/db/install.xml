@@ -175,5 +175,42 @@
       </INDEXES>
     </TABLE>
 
+    <!-- Writing behaviour in essay questions: one cumulative row per student, quiz attempt, question and page visit. Never stores the text itself. -->
+    <TABLE NAME="local_latracker_essay" COMMENT="Writing behaviour metrics (focus/typing time, pauses, pastes, text size) for essay questions">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="The quiz course module"/>
+        <FIELD NAME="usageid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" DEFAULT="0" COMMENT="Question usage id of the quiz attempt (one per attempt)"/>
+        <FIELD NAME="slot" TYPE="int" LENGTH="5" NOTNULL="true" SEQUENCE="false" DEFAULT="0" COMMENT="Question slot in the quiz, the same for every student"/>
+        <FIELD NAME="sessionid" TYPE="char" LENGTH="40" NOTNULL="true" SEQUENCE="false" COMMENT="Random id of one page visit, generated client-side"/>
+        <FIELD NAME="questionnumber" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="Question number as displayed to the student"/>
+        <FIELD NAME="questioncontext" TYPE="char" LENGTH="150" NOTNULL="false" SEQUENCE="false" COMMENT="Short snippet of the question text"/>
+        <FIELD NAME="startedms" TYPE="int" LENGTH="16" NOTNULL="true" SEQUENCE="false" COMMENT="Client-side Date.now() when the page visit started"/>
+        <FIELD NAME="reportms" TYPE="int" LENGTH="16" NOTNULL="true" SEQUENCE="false" COMMENT="Client-side Date.now() of the latest report, used to ignore out-of-order reports"/>
+        <FIELD NAME="focusseconds" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" DEFAULT="0" COMMENT="Seconds with the answer field focused"/>
+        <FIELD NAME="typingseconds" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" DEFAULT="0" COMMENT="Seconds of active typing (gaps under the pause threshold)"/>
+        <FIELD NAME="keystrokes" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" DEFAULT="0" COMMENT="Typing/deleting input events, excluding pastes"/>
+        <FIELD NAME="pausecount" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" DEFAULT="0" COMMENT="Gaps between inputs above the pause threshold"/>
+        <FIELD NAME="pastecount" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" DEFAULT="0" COMMENT="Number of paste events"/>
+        <FIELD NAME="pastedchars" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" DEFAULT="0" COMMENT="Total characters pasted"/>
+        <FIELD NAME="finalchars" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" DEFAULT="0" COMMENT="Answer length in characters at the latest report"/>
+        <FIELD NAME="finalwords" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" DEFAULT="0" COMMENT="Answer length in words at the latest report"/>
+        <FIELD NAME="timeline" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON [[secondsSinceStart, chars, words], ...]"/>
+        <FIELD NAME="pastelog" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON [[secondsSinceStart, chars], ...] of individual pastes"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userid_fk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="courseid_fk" TYPE="foreign" FIELDS="courseid" REFTABLE="course" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="course_cm_idx" UNIQUE="false" FIELDS="courseid, cmid"/>
+        <INDEX NAME="session_uidx" UNIQUE="true" FIELDS="userid, sessionid, usageid, slot"/>
+      </INDEXES>
+    </TABLE>
+
   </TABLES>
 </XMLDB>

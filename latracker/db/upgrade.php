@@ -98,5 +98,49 @@ function xmldb_local_latracker_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026090100, 'local', 'latracker');
     }
 
+    if ($oldversion < 2026100500) {
+
+        // Writing behaviour in essay questions (focus/typing time, pauses,
+        // pastes, text size over time). Never stores the written text.
+        $table = new xmldb_table('local_latracker_essay');
+        if (!$dbman->table_exists($table)) {
+            $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
+            $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null);
+            $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null);
+            $table->add_field('cmid', XMLDB_TYPE_INTEGER, '10', null, null, null);
+            $table->add_field('usageid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('slot', XMLDB_TYPE_INTEGER, '5', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('sessionid', XMLDB_TYPE_CHAR, '40', null, XMLDB_NOTNULL, null);
+            $table->add_field('questionnumber', XMLDB_TYPE_CHAR, '20', null, null, null);
+            $table->add_field('questioncontext', XMLDB_TYPE_CHAR, '150', null, null, null);
+            $table->add_field('startedms', XMLDB_TYPE_INTEGER, '16', null, XMLDB_NOTNULL, null);
+            $table->add_field('reportms', XMLDB_TYPE_INTEGER, '16', null, XMLDB_NOTNULL, null);
+            $table->add_field('focusseconds', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('typingseconds', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('keystrokes', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('pausecount', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('pastecount', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('pastedchars', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('finalchars', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('finalwords', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('timeline', XMLDB_TYPE_TEXT, null, null, null, null);
+            $table->add_field('pastelog', XMLDB_TYPE_TEXT, null, null, null, null);
+            $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null);
+
+            $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $table->add_key('userid_fk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+            $table->add_key('courseid_fk', XMLDB_KEY_FOREIGN, ['courseid'], 'course', ['id']);
+
+            // No index on a single FK column: the foreign keys above already
+            // index them, and an identical index collides.
+            $table->add_index('course_cm_idx', XMLDB_INDEX_NOTUNIQUE, ['courseid', 'cmid']);
+            $table->add_index('session_uidx', XMLDB_INDEX_UNIQUE, ['userid', 'sessionid', 'usageid', 'slot']);
+
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 2026100500, 'local', 'latracker');
+    }
+
     return true;
 }

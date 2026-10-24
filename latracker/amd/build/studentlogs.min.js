@@ -151,11 +151,9 @@ define(['core/ajax', 'core/str'], function(Ajax, Str) {
 
     var loadStudent = function(userid) {
         var downloadBtn = root.querySelector('[data-action="download-log-csv"]');
-        var truncatedNotice = root.querySelector('[data-region="log-truncated-notice"]');
 
         currentRows = [];
         downloadBtn.disabled = true;
-        truncatedNotice.classList.add('d-none');
         root.querySelector('[data-region="log-table-wrapper"]').innerHTML = '';
 
         if (!userid) {
@@ -188,14 +186,6 @@ define(['core/ajax', 'core/str'], function(Ajax, Str) {
             showStatus('');
             renderTable(currentRows);
             downloadBtn.disabled = false;
-
-            if (response.truncated) {
-                return Str.get_string('logtruncated', 'local_latracker', currentRows.length).then(function(text) {
-                    truncatedNotice.textContent = text;
-                    truncatedNotice.classList.remove('d-none');
-                    return null;
-                });
-            }
             return null;
         }).catch(function(error) {
             showStatus(error.message);

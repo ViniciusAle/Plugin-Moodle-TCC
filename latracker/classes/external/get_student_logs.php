@@ -66,9 +66,21 @@ class get_student_logs extends external_api {
             '',
             'id, cmid, optionlabel, questioncontext, timecreatedms'
         ));
-        $clickrows = log_trail::build_click_rows($clickrecords, get_fast_modinfo($params['courseid']));
+        $modinfo = get_fast_modinfo($params['courseid']);
+        $clickrows = log_trail::build_click_rows($clickrecords, $modinfo);
 
-        $merged = log_trail::merge_rows($nativerows, $clickrows);
+        // Same rule as above: 'id' first, or rows sharing a cmid would collapse.
+        $essayrecords = array_values($DB->get_records_select(
+            'local_latracker_essay',
+            'courseid = :courseid AND userid = :userid',
+            ['courseid' => $params['courseid'], 'userid' => $params['userid']],
+            '',
+            'id, cmid, slot, questionnumber, startedms, reportms, keystrokes, typingseconds, pausecount, '
+                . 'pastecount, pastedchars, finalchars, finalwords, pastelog'
+        ));
+        $essayrows = log_trail::build_essay_rows($essayrecords, $modinfo);
+
+        $merged = log_trail::merge_rows($nativerows, array_merge($clickrows, $essayrows));
 
         return [
             'rows' => array_map(function($row) {
@@ -79,7 +91,6 @@ class get_student_logs extends external_api {
                     'eventname' => $row['eventname'],
                 ];
             }, $merged['rows']),
-            'truncated' => $merged['truncated'],
         ];
     }
 
@@ -94,12 +105,13 @@ class get_student_logs extends external_api {
             return [];
         }
 
+        // limitnum 0 = no limit: the trail shows the student's whole history.
         $events = $reader->get_events_select(
             'courseid = :courseid AND userid = :userid',
             ['courseid' => $courseid, 'userid' => $userid],
             'timecreated ASC',
             0,
-            log_trail::MAX_ROWS_PER_STUDENT
+            0
         );
 
         return log_trail::build_native_rows($events);
@@ -115,7 +127,6 @@ class get_student_logs extends external_api {
                     'eventname' => new external_value(PARAM_TEXT, 'Event name/description'),
                 ])
             ),
-            'truncated' => new external_value(PARAM_BOOL, 'Whether more rows exist beyond the returned cap'),
         ]);
     }
 }

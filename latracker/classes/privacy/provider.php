@@ -43,6 +43,7 @@ class provider implements
         'local_latracker_event',
         'local_latracker_click',
         'local_latracker_submission',
+        'local_latracker_essay',
     ];
 
     public static function get_metadata(collection $collection): collection {
@@ -90,6 +91,22 @@ class provider implements
             'timesubmitted'    => 'privacy:metadata:local_latracker_submission:timesubmitted',
             'secondsbeforedue' => 'privacy:metadata:local_latracker_submission:secondsbeforedue',
         ], 'privacy:metadata:local_latracker_submission');
+
+        $collection->add_database_table('local_latracker_essay', [
+            'userid'        => 'privacy:metadata:local_latracker_essay:userid',
+            'cmid'          => 'privacy:metadata:local_latracker_essay:cmid',
+            'questioncontext' => 'privacy:metadata:local_latracker_essay:questioncontext',
+            'focusseconds'  => 'privacy:metadata:local_latracker_essay:focusseconds',
+            'typingseconds' => 'privacy:metadata:local_latracker_essay:typingseconds',
+            'keystrokes'    => 'privacy:metadata:local_latracker_essay:keystrokes',
+            'pausecount'    => 'privacy:metadata:local_latracker_essay:pausecount',
+            'pastecount'    => 'privacy:metadata:local_latracker_essay:pastecount',
+            'pastedchars'   => 'privacy:metadata:local_latracker_essay:pastedchars',
+            'finalchars'    => 'privacy:metadata:local_latracker_essay:finalchars',
+            'finalwords'    => 'privacy:metadata:local_latracker_essay:finalwords',
+            'timeline'      => 'privacy:metadata:local_latracker_essay:timeline',
+            'pastelog'      => 'privacy:metadata:local_latracker_essay:pastelog',
+        ], 'privacy:metadata:local_latracker_essay');
 
         return $collection;
     }
@@ -145,6 +162,7 @@ class provider implements
                 'events'       => array_values($DB->get_records('local_latracker_event', ['courseid' => $courseid, 'userid' => $userid])),
                 'clicks'       => array_values($DB->get_records('local_latracker_click', ['courseid' => $courseid, 'userid' => $userid])),
                 'submissions'  => array_values($DB->get_records('local_latracker_submission', ['courseid' => $courseid, 'userid' => $userid])),
+                'essays'       => array_values($DB->get_records('local_latracker_essay', ['courseid' => $courseid, 'userid' => $userid])),
             ];
 
             writer::with_context($context)->export_data([get_string('pluginname', 'local_latracker')], $data);

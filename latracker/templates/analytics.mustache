@@ -26,6 +26,8 @@
     * engagementtimelinejson - string, JSON payload for amd/src/engagementchart.js
     * hasoptionclickactivities - bool
     * optionclickactivities - array of {cmid, name} (quiz/choice activities)
+    * hasessayactivities - bool
+    * essayactivities - array of {cmid, name} (quiz activities)
     * hassubmissiontimingdata - bool
     * submissiontimingjson - string, JSON payload for amd/src/submissiontiming.js
     * hascourseenrolledusers - bool
@@ -203,6 +205,65 @@
         </div>
     </div>
 
+    <div class="card mb-4" id="local-latracker-essay-behavior">
+        <div class="card-header local-latracker-card-header">
+            <strong class="local-latracker-card-title">{{#str}}insight_essaybehavior_title, local_latracker{{/str}}</strong>
+            <span class="local-latracker-help-icon" tabindex="0"
+                  title="{{#str}}insight_essaybehavior_desc, local_latracker{{/str}}"
+                  aria-label="{{#str}}aboutindicator, local_latracker{{/str}}: {{#str}}insight_essaybehavior_desc, local_latracker{{/str}}">
+                <i class="fa fa-info-circle" aria-hidden="true"></i>
+            </span>
+        </div>
+        <div class="card-body">
+            {{^hasessayactivities}}
+                <p class="text-muted">{{#str}}noessayactivities, local_latracker{{/str}}</p>
+            {{/hasessayactivities}}
+            {{#hasessayactivities}}
+            <div class="d-flex flex-wrap align-items-end mb-2">
+                <div class="form-group mb-2 mr-2 flex-grow-1">
+                    <label for="local-latracker-essay-activity-select" class="small text-muted mb-1">
+                        {{#str}}selectactivity, local_latracker{{/str}}
+                    </label>
+                    <select id="local-latracker-essay-activity-select" class="form-control" data-region="activity-select">
+                        <option value="">{{#str}}choose{{/str}}</option>
+                        {{#essayactivities}}
+                        <option value="{{cmid}}">{{name}}</option>
+                        {{/essayactivities}}
+                    </select>
+                </div>
+                <div class="form-group mb-2 flex-grow-1 d-none" data-region="question-picker">
+                    <label for="local-latracker-essay-question-select" class="small text-muted mb-1">
+                        {{#str}}essayquestion, local_latracker{{/str}}
+                    </label>
+                    <select id="local-latracker-essay-question-select" class="form-control" data-region="question-select"></select>
+                </div>
+            </div>
+            <div data-region="status-message" class="text-muted small mb-2"></div>
+
+            <div class="d-none" data-region="essay-results">
+                <div class="local-latracker-subtitle">{{#str}}essaycompositiontitle, local_latracker{{/str}}</div>
+                <div class="local-latracker-essay-chart" data-region="essay-composition-wrapper">
+                    <canvas data-region="essay-composition-canvas"></canvas>
+                </div>
+
+                <div class="table-responsive local-latracker-log-table mt-3" data-region="essay-table-wrapper"></div>
+                <p class="text-muted small mt-2 mb-0">{{#str}}essaythresholdnote, local_latracker{{/str}}</p>
+
+                <div class="form-group mt-3 mb-2">
+                    <label for="local-latracker-essay-student-select" class="small text-muted mb-1">
+                        {{#str}}essayviewevolution, local_latracker{{/str}}
+                    </label>
+                    <select id="local-latracker-essay-student-select" class="form-control" data-region="evolution-select"></select>
+                </div>
+                <div data-region="evolution-status" class="text-muted small mb-2"></div>
+                <div class="local-latracker-essay-chart local-latracker-essay-evolution d-none" data-region="essay-evolution-wrapper">
+                    <canvas data-region="essay-evolution-canvas"></canvas>
+                </div>
+            </div>
+            {{/hasessayactivities}}
+        </div>
+    </div>
+
     <h5 class="local-latracker-section-title">{{#str}}section_trail, local_latracker{{/str}}</h5>
     <div class="card mb-4" id="local-latracker-student-logs">
         <div class="card-header local-latracker-card-header">
@@ -242,7 +303,6 @@
                 </div>
             </div>
             <div data-region="status-message" class="text-muted small mb-2"></div>
-            <div data-region="log-truncated-notice" class="alert alert-info small d-none"></div>
             <div class="table-responsive local-latracker-log-table" data-region="log-table-wrapper"></div>
             {{/hascourseenrolledusers}}
         </div>
@@ -287,6 +347,9 @@ require(['local_latracker/engagementchart'], function(EngagementChart) {
 });
 require(['local_latracker/optionclicks'], function(OptionClicks) {
     OptionClicks.init('local-latracker-option-clicks', {{courseid}});
+});
+require(['local_latracker/essaybehavior'], function(EssayBehavior) {
+    EssayBehavior.init('local-latracker-essay-behavior', {{courseid}});
 });
 require(['local_latracker/submissiontiming'], function(SubmissionTiming) {
     SubmissionTiming.init('local-latracker-submission-timing');

@@ -61,7 +61,7 @@ class get_all_student_logs extends external_api {
         }
 
         if (empty($students)) {
-            return ['rows' => [], 'truncated' => false];
+            return ['rows' => []];
         }
 
         $userids = array_keys($students);
@@ -85,18 +85,28 @@ class get_all_student_logs extends external_api {
             $clicksbyuser[$record->userid][] = $record;
         }
 
+        // Same rule as above: 'id' first, or rows sharing a userid would collapse.
+        $essayrecords = $DB->get_records_select(
+            'local_latracker_essay',
+            "courseid = :courseid AND userid $insql",
+            array_merge(['courseid' => $params['courseid']], $inparams),
+            '',
+            'id, userid, cmid, slot, questionnumber, startedms, reportms, keystrokes, typingseconds, pausecount, '
+                . 'pastecount, pastedchars, finalchars, finalwords, pastelog'
+        );
+        $essaybyuser = [];
+        foreach ($essayrecords as $record) {
+            $essaybyuser[$record->userid][] = $record;
+        }
+
         $modinfo = get_fast_modinfo($params['courseid']);
         $rows = [];
-        $truncated = false;
 
         foreach ($students as $userid => $studentname) {
             $nativerows = $nativebyuser[$userid] ?? [];
             $clickrows = log_trail::build_click_rows($clicksbyuser[$userid] ?? [], $modinfo);
-            $merged = log_trail::merge_rows($nativerows, $clickrows);
-
-            if ($merged['truncated']) {
-                $truncated = true;
-            }
+            $essayrows = log_trail::build_essay_rows($essaybyuser[$userid] ?? [], $modinfo);
+            $merged = log_trail::merge_rows($nativerows, array_merge($clickrows, $essayrows));
 
             foreach ($merged['rows'] as $row) {
                 $rows[] = [
@@ -109,7 +119,7 @@ class get_all_student_logs extends external_api {
             }
         }
 
-        return ['rows' => $rows, 'truncated' => $truncated];
+        return ['rows' => $rows];
     }
 
     /**
@@ -126,12 +136,13 @@ class get_all_student_logs extends external_api {
             return [];
         }
 
+        // limitnum 0 = no limit: the export contains every student's whole history.
         $events = $reader->get_events_select(
             "courseid = :courseid AND userid $insql",
             array_merge(['courseid' => $courseid], $inparams),
             'userid ASC, timecreated ASC',
             0,
-            log_trail::MAX_ROWS_PER_STUDENT * count($userids)
+            0
         );
 
         $byuser = [];
@@ -157,7 +168,6 @@ class get_all_student_logs extends external_api {
                     'eventname' => new external_value(PARAM_TEXT, 'Event name/description'),
                 ])
             ),
-            'truncated' => new external_value(PARAM_BOOL, 'Whether any student\'s rows were capped'),
         ]);
     }
 }

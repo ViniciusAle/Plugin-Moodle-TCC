@@ -53,6 +53,22 @@ $functions = [
         'ajax'        => true,
         'loginrequired' => true,
     ],
+    'local_latracker_track_essay' => [
+        'classname'   => 'local_latracker\external\track_essay',
+        'methodname'  => 'execute',
+        'description' => 'Records writing-behaviour metrics (focus/typing time, pauses, pastes, text size) for essay questions.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'loginrequired' => true,
+    ],
+    'local_latracker_get_essay_behavior' => [
+        'classname'   => 'local_latracker\external\get_essay_behavior',
+        'methodname'  => 'execute',
+        'description' => 'Returns per-student writing-behaviour summaries (and optionally one student\'s evolution) for the essay questions of a quiz.',
+        'type'        => 'read',
+        'ajax'        => true,
+        'loginrequired' => true,
+    ],
     'local_latracker_get_option_clicks' => [
         'classname'   => 'local_latracker\external\get_option_clicks',
         'methodname'  => 'execute',
